@@ -18,6 +18,13 @@ export async function analyzeDevice(
   const res = await fetch("/api/analyze", { method: "POST", body: form });
   if (!res.ok) throw new Error(`Analyze failed: ${res.statusText}`);
   const data = await res.json();
+  // Proxy eBay images through backend to avoid hotlink blocking
+  if (data.comparables) {
+    data.comparables = data.comparables.map((c: { imageUrl?: string }) => ({
+      ...c,
+      imageUrl: c.imageUrl ? `/api/image-proxy?url=${encodeURIComponent(c.imageUrl)}` : "",
+    }));
+  }
   // scannedAt comes as ISO string, convert to Date
   return { ...data, scannedAt: new Date(data.scannedAt) };
 }
