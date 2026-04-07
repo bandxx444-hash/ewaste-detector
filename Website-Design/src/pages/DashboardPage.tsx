@@ -3,6 +3,7 @@ import { Trash2, DollarSign, Store, Recycle, Inbox } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import { useScan, type ScanResult } from "@/context/ScanContext";
+import { ChevronRight } from "lucide-react";
 
 const condBadge: Record<string, string> = {
   Excellent: "bg-primary/15 text-primary",
@@ -19,7 +20,7 @@ const decisionIcon: Record<string, React.ReactNode> = {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const { scanHistory, clearHistory } = useScan();
+  const { scanHistory, clearHistory, setResult } = useScan();
   const totalValue = scanHistory.reduce((s, r) => s + r.estimatedValue, 0);
   const totalCO2 = scanHistory.reduce((s, r) => s + r.co2Saved, 0);
 
@@ -60,7 +61,8 @@ const DashboardPage = () => {
 
             <div className="space-y-3 mb-8">
               {scanHistory.map((r: ScanResult) => (
-                <div key={r.id} className="glass-card flex items-center gap-4">
+                <button key={r.id} onClick={() => { setResult(r); navigate("/listing"); }}
+                  className="glass-card w-full flex items-center gap-4 text-left hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
                   <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                     {decisionIcon[r.decision]}
                   </div>
@@ -68,11 +70,14 @@ const DashboardPage = () => {
                     <p className="font-bold text-foreground text-sm truncate">{r.deviceName}</p>
                     <p className="text-xs text-subtle">{r.brand} · {new Date(r.scannedAt).toLocaleDateString()}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-lg font-display font-bold gradient-text">${r.estimatedValue}</p>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${condBadge[r.condition]}`}>{r.condition}</span>
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    <div>
+                      <p className="text-lg font-display font-bold gradient-text">${r.estimatedValue}</p>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${condBadge[r.condition]}`}>{r.condition}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-subtle" />
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 

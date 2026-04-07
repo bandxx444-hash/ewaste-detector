@@ -2,14 +2,22 @@
 EcoLens FastAPI backend — wraps the real Claude API calls.
 Run with:  uvicorn backend:app --reload --port 8000
 """
+import asyncio
 import json
 import base64
 import io
 import uuid
 from datetime import datetime
 
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
+import httpx
 import anthropic
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
@@ -19,10 +27,22 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── GET /api/image-proxy ───────────────────────────────────────────────────────
+
+@app.get("/api/image-proxy")
+async def image_proxy(url: str):
+    """Proxy eBay images to avoid hotlink blocking."""
+    if not url.startswith("https://i.ebayimg.com"):
+        return Response(status_code=403)
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url, headers={"Referer": "https://www.ebay.com/"}, follow_redirects=True)
+    return Response(content=r.content, media_type=r.headers.get("content-type", "image/jpeg"))
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +96,31 @@ def make_image_block(b: bytes) -> dict:
     img.save(buf, format="JPEG", quality=85)
     b64 = base64.standard_b64encode(buf.getvalue()).decode()
     return {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}}
+
+
+async def fetch_ebay_image(url: str) -> str:
+    """Scrape the first product image from an eBay listing page."""
+    if not url or "ebay.com" not in url:
+        return ""
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+            }, follow_redirects=True)
+        text = r.text
+        # Look for i.ebayimg.com image URLs in the page
+        import re
+        matches = re.findall(r'https://i\.ebayimg\.com/images/g/[^"\'\\s]+s-l[0-9]+\.jpg', text)
+        if matches:
+            # Prefer s-l500 size
+            for m in matches:
+                if "s-l500" in m or "s-l400" in m:
+                    return m
+            return matches[0]
+    except Exception:
+        pass
+    return ""
 
 
 def carbon_saving(device_name: str) -> int:
@@ -168,6 +213,11 @@ async def analyze(
     if not raw:
         raise ValueError("No analysis response from Claude.")
 
+    # Build comparables and fetch real images from listing pages
+    raw_comparables = raw.get("comparable_listings", [])
+    image_tasks = [fetch_ebay_image(c.get("url", "")) for c in raw_comparables]
+    scraped_images = await asyncio.gather(*image_tasks)
+
     comparables = [
         {
             "title": c.get("title", ""),
@@ -175,10 +225,10 @@ async def analyze(
             "condition": c.get("condition", "Used"),
             "soldDate": c.get("sold_date", ""),
             "variant": c.get("variant", ""),
-            "imageUrl": (c.get("image_urls") or [""])[0],
+            "imageUrl": scraped_images[i] or (c.get("image_urls") or [""])[0],
             "ebayUrl": c.get("url", "https://www.ebay.com"),
         }
-        for c in raw.get("comparable_listings", [])
+        for i, c in enumerate(raw_comparables)
     ]
 
     low = raw.get("estimated_value_low", 0)
@@ -255,3 +305,18 @@ SHIPPING: {shipping}
 TAGS: {', '.join(tags)}"""
 
     return {"listing": text}
+
+
+# ── Serve React frontend (must be last) ────────────────────────────────────────
+
+DIST = os.path.join(os.path.dirname(__file__), "Website-Design", "dist")
+
+if os.path.isdir(DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file = os.path.join(DIST, full_path)
+        if os.path.isfile(file):
+            return FileResponse(file)
+        return FileResponse(os.path.join(DIST, "index.html"))

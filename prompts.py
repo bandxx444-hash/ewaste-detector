@@ -14,15 +14,17 @@ Carefully analyze the uploaded photos of the device. Look for:
 - Overall cleanliness and wear
 
 Then search the web for current eBay SOLD listings for this exact model to get real
-market prices. Focus on completed/sold listings, not active ones.
+market prices. Search for: site:ebay.com "{model} {name}" sold completed listings.
+Focus on completed/sold listings, not active ones. Visit the actual listing pages to get image URLs.
 
 For each comparable listing you find, extract:
 - The full listing title
 - The sold price (number only, no $ sign)
 - The condition label used on eBay (e.g. "Used", "Good - Refurbished", "For parts")
 - The sold date (e.g. "Mar 28, 2025")
-- The direct eBay listing URL (must be a real ebay.com URL you actually found — if you cannot find the real URL, construct a search URL like https://www.ebay.com/sch/i.html?_nkw=DEVICE+MODEL&LH_Complete=1&LH_Sold=1 substituting the device name)
+- The direct eBay listing URL — must be a real https://www.ebay.com/itm/ITEMID URL from the listing page you visited. If you cannot find a real listing URL, use https://www.ebay.com/sch/i.html?_nkw={name}+{model}&LH_Complete=1&LH_Sold=1
 - A short storage/variant label if visible (e.g. "64GB", "256GB Space Gray", "Wi-Fi only")
+- The main product image URL from the listing page — eBay images follow the pattern https://i.ebayimg.com/images/g/HASH/s-l500.jpg or https://i.ebayimg.com/thumbs/images/g/HASH/s-l225.jpg. Look for these URLs in the listing page HTML/source. Include at least 1 real image URL if you can find it.
 
 Return ONLY valid JSON — no markdown, no explanation, just the raw JSON object:
 {{
