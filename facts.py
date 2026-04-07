@@ -1,0 +1,17 @@
+EWASTE_FACTS = [
+    "Only 17.4% of e-waste was formally recycled in 2019. (United Nations)",
+    "E-waste is the fastest-growing domestic waste stream worldwide.",
+    "A ton of circuit boards contains 40–800x more gold than a ton of gold ore.",
+    "Americans discard phones containing over $60 million in gold and silver every year.",
+    "Improper e-waste disposal leaches lead and mercury into soil and groundwater.",
+    "In 2019, the world generated 53.6 million metric tons of e-waste.",
+    "Only 20% of global e-waste is recycled through formal channels.",
+    "E-waste represents 2% of trash in landfills but 70% of overall toxic waste.",
+    "Recycling one million laptops saves the energy equivalent of powering 3,500 US homes for a year.",
+    "Cell phones contain up to 60 different elements, many of which are recoverable.",
+    "The EPA estimates that recycling 1 million laptops saves energy equivalent to electricity used by 3,657 US homes.",
+    "Exporting e-waste to developing countries is illegal under the Basel Convention.",
+    "Less than 20% of e-waste is documented as properly collected and recycled.",
+    "The value of raw materials in global e-waste is estimated at $57 billion USD annually.",
+    "Proper e-waste recycling can recover gold, silver, copper, and rare earth metals.",
+]
