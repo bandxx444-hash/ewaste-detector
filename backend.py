@@ -63,7 +63,7 @@ async def ebay_sold_listings(query: str, limit: int = 3) -> list[dict]:
         results = []
         for item in items[:limit]:
             price_val = float(item.get("price", {}).get("value", 0))
-            image_url = item.get("image", {}).get("imageUrl", "")
+            image_url = item.get("image", {}).get("imageUrl", "").replace("s-l225", "s-l500").replace("s-l140", "s-l500")
             results.append({
                 "title": item.get("title", ""),
                 "soldPrice": price_val,
@@ -95,17 +95,28 @@ async def image_proxy(url: str):
 
 IDENTIFY_PROMPT = """
 Look at these photos of an electronic device and identify it as accurately as possible.
-For each field provide a value AND confidence: "certain", "likely", or "unknown".
-Return ONLY valid JSON — no markdown:
+For each field provide the actual identified value AND your confidence level.
+
+Return ONLY valid JSON — no markdown, no explanation:
 {
-  "device_name":      {"value": "e.g. iPhone 12",    "confidence": "certain|likely|unknown"},
-  "brand":            {"value": "e.g. Apple",         "confidence": "certain|likely|unknown"},
-  "model":            {"value": "e.g. A2172",         "confidence": "certain|likely|unknown"},
-  "year":             {"value": 2020,                 "confidence": "certain|likely|unknown"},
-  "powers_on":        {"value": "Yes|No",             "confidence": "certain|likely|unknown"},
-  "screen_condition": {"value": "Flawless|Minor Scratches|Cracked|Screen is off/broken", "confidence": "certain|likely|unknown"}
+  "device_name":      {"value": null, "confidence": "certain"},
+  "brand":            {"value": null, "confidence": "certain"},
+  "model":            {"value": null, "confidence": "unknown"},
+  "year":             {"value": null, "confidence": "unknown"},
+  "powers_on":        {"value": null, "confidence": "unknown"},
+  "screen_condition": {"value": null, "confidence": "unknown"}
 }
-If unknown, set value to null and confidence to "unknown".
+
+Rules:
+- device_name: the full product name you see (e.g. "MacBook Pro 14", "Samsung Galaxy S21", "iPad Air 4th Gen")
+- brand: manufacturer name (e.g. "Apple", "Samsung", "Dell", "Sony")
+- model: model number or identifier if visible (e.g. "A2442", "SM-G991B"), null if not visible
+- year: estimated release year as a number (e.g. 2021), null if uncertain
+- powers_on: "Yes" or "No" based on what you can see, null if screen is off and you cannot tell
+- screen_condition: one of "Flawless", "Minor Scratches", "Cracked", "Screen is off/broken", null if uncertain
+- confidence must be exactly one of: "certain", "likely", "unknown"
+- If you cannot determine a value, set value to null and confidence to "unknown"
+- Do NOT use placeholder or example text as values — only use what you actually observe
 """
 
 CARBON_SAVINGS = {

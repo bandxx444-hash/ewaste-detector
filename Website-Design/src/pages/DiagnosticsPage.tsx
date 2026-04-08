@@ -1,23 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, CheckCircle, Cpu } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle, Cpu, XCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
 import { useScan } from "@/context/ScanContext";
 
+// Very short or generic strings that aren't real device info
+const JUNK_PATTERNS = /^(yes|no|ok|test|asdf|qwerty|hello|hi|abc|123|n\/a|na|none|idk|unknown|null|undefined|\.+|-)$/i;
+
+function looksLikeJunk(val: string) {
+  return !val.trim() || val.trim().length < 2 || JUNK_PATTERNS.test(val.trim());
+}
+
 const DiagnosticsPage = () => {
   const navigate = useNavigate();
   const { diagnostics, setDiagnostics } = useScan();
   const [form, setForm] = useState(diagnostics);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const confident = Object.entries(form.aiConfidence).filter(([, v]) => v);
   const uncertain = Object.entries(form.aiConfidence).filter(([, v]) => !v);
   const allConfident = uncertain.length === 0;
 
-  const update = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
+  const update = (key: string, value: any) => {
+    setValidationError(null);
+    setForm(prev => ({ ...prev, [key]: value }));
+  };
 
-  const handleSubmit = () => { setDiagnostics(form); navigate("/loading"); };
+  const handleSubmit = () => {
+    if (looksLikeJunk(form.productName)) {
+      setValidationError("Please enter a valid product name (e.g. \"iPhone 12\", \"MacBook Pro\", \"Samsung Galaxy S21\").");
+      return;
+    }
+    if (looksLikeJunk(form.brand)) {
+      setValidationError("Please enter the device brand (e.g. \"Apple\", \"Samsung\", \"Dell\").");
+      return;
+    }
+    setDiagnostics(form);
+    navigate("/loading");
+  };
 
   const fieldLabel = (key: string) => ({
     productName: "Product Name", brand: "Brand", modelNumber: "Model Number",
@@ -116,8 +138,20 @@ const DiagnosticsPage = () => {
             </div>
           </div>
 
+          {validationError && (
+            <div className="mt-5 flex items-start gap-2 rounded-xl px-4 py-3 bg-destructive/10 border border-destructive/20">
+              <XCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="text-destructive font-medium">{validationError}</p>
+                <button onClick={() => navigate("/upload")} className="text-xs text-subtle underline mt-1 hover:text-foreground transition-colors">
+                  Retake photos for better AI detection →
+                </button>
+              </div>
+            </div>
+          )}
+
           <button onClick={handleSubmit}
-            className="w-full mt-8 py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5"
+            className="w-full mt-6 py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5"
             style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
             Run AI Analysis →
           </button>

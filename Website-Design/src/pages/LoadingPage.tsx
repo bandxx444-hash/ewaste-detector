@@ -75,11 +75,40 @@ const LoadingPage = () => {
       })
       .catch(err => {
         console.error(err);
-        setError("Analysis failed. Please go back and try again.");
+        setError("We couldn't analyze your device. Please check your photos and try again.");
       });
   }, []); // eslint-disable-line
 
   const PhaseIcon = phases[phase].icon;
+
+  // Error state — stop loading and prompt user to go back
+  if (error) {
+    return (
+      <div className="min-h-screen relative">
+        <BackgroundOrbs />
+        <Navbar />
+        <main className="container mx-auto px-4 max-w-lg relative z-10 pt-20 pb-20 text-center font-sans">
+          <div className="animate-fade-in-up mt-12">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+              style={{ background: "hsl(0 70% 95%)" }}>
+              <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-display font-bold mb-3">Analysis Failed</h2>
+            <p className="text-sm text-subtle mb-2">{error}</p>
+            <p className="text-xs text-faintest mb-8">Tips: use clear, well-lit photos · show the device front and back · avoid blurry or partial shots</p>
+            <button
+              onClick={() => navigate("/upload")}
+              className="w-full py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5"
+              style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
+              ← Retake Photos
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative">
@@ -122,11 +151,7 @@ const LoadingPage = () => {
           </div>
 
           <h2 className="text-2xl md:text-3xl font-display font-bold mb-2">Analyzing Marketplace</h2>
-          {error ? (
-            <p className="text-sm text-destructive font-medium mb-1">{error}</p>
-          ) : (
-            <p className="text-sm text-primary font-medium mb-1 h-5">{phases[phase].label}</p>
-          )}
+          <p className="text-sm text-primary font-medium mb-1 h-5">{phases[phase].label}</p>
           <p className="text-xs text-faintest mb-8">{Math.round(progress)}% complete</p>
 
           <div className="flex items-center justify-center gap-2 mb-10">

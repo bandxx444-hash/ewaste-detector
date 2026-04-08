@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
@@ -34,6 +34,39 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+async function extractVideoFrames(file: File, count = 4): Promise<string[]> {
+  return new Promise(resolve => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    const url = URL.createObjectURL(file);
+    video.src = url;
+    video.addEventListener("error", () => { URL.revokeObjectURL(url); resolve([]); });
+    video.addEventListener("loadedmetadata", async () => {
+      const dur = video.duration;
+      if (!isFinite(dur) || dur === 0) { URL.revokeObjectURL(url); resolve([]); return; }
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+      const frames: string[] = [];
+      const timestamps = Array.from({ length: count }, (_, i) => (i + 0.5) * (dur / count));
+      for (const ts of timestamps) {
+        await new Promise<void>(res => {
+          video.currentTime = ts;
+          video.addEventListener("seeked", () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            frames.push(canvas.toDataURL("image/jpeg", 0.85));
+            res();
+          }, { once: true });
+        });
+      }
+      URL.revokeObjectURL(url);
+      resolve(frames);
+    });
+  });
+}
+
 const EbayWordmark = () => (
   <svg viewBox="0 0 100 40" className="h-7 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
     <text x="0" y="32" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="38" letterSpacing="-2">
@@ -45,13 +78,14 @@ const EbayWordmark = () => (
   </svg>
 );
 
-function EbayListingPreview({ listing, imageUrl, deviceName }: {
+function EbayListingPreview({ listing, photos, deviceName }: {
   listing: ListingData;
-  imageUrl: string;
+  photos: string[];
   deviceName: string;
 }) {
-  const [imgErr, setImgErr] = useState(false);
-  const hasImg = !!(imageUrl && !imgErr);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const total = photos.length;
+  const current = photos[photoIdx];
 
   return (
     <div className="rounded-2xl border border-border overflow-hidden bg-white shadow-lg mb-5 text-left">
@@ -62,15 +96,47 @@ function EbayListingPreview({ listing, imageUrl, deviceName }: {
       </div>
 
       <div className="flex flex-col sm:flex-row">
-        {/* Left: image */}
-        <div className="sm:w-48 shrink-0 bg-[#f7f7f7] flex items-center justify-center p-4 min-h-[160px]">
-          {hasImg ? (
-            <img
-              src={imageUrl}
-              alt={deviceName}
-              className="max-h-36 max-w-full object-contain"
-              onError={() => setImgErr(true)}
-            />
+        {/* Left: photo carousel */}
+        <div className="sm:w-52 shrink-0 bg-[#f7f7f7] flex flex-col items-center justify-center min-h-[200px] relative">
+          {total > 0 ? (
+            <>
+              <div className="relative w-full flex items-center justify-center" style={{ minHeight: 180 }}>
+                <img
+                  key={current}
+                  src={current}
+                  alt={`${deviceName} photo ${photoIdx + 1}`}
+                  className="max-h-44 max-w-full object-contain p-3"
+                />
+                {/* Arrows */}
+                {total > 1 && (
+                  <>
+                    <button
+                      onClick={() => setPhotoIdx(i => Math.max(0, i - 1))}
+                      disabled={photoIdx === 0}
+                      className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5 text-[#555]" />
+                    </button>
+                    <button
+                      onClick={() => setPhotoIdx(i => Math.min(total - 1, i + 1))}
+                      disabled={photoIdx === total - 1}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 text-[#555]" />
+                    </button>
+                  </>
+                )}
+              </div>
+              {/* Dot indicators */}
+              {total > 1 && (
+                <div className="flex gap-1 pb-2">
+                  {photos.map((_, i) => (
+                    <button key={i} onClick={() => setPhotoIdx(i)}
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${i === photoIdx ? "bg-[#0064D2] w-3" : "bg-[#c7c7c7]"}`} />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div className="w-28 h-28 rounded-xl bg-[#e5e5e5] flex items-center justify-center">
               <span className="text-[11px] text-[#767676] text-center px-2">Your photo<br/>goes here</span>
@@ -80,30 +146,19 @@ function EbayListingPreview({ listing, imageUrl, deviceName }: {
 
         {/* Right: details */}
         <div className="flex-1 p-4">
-          {/* Title */}
-          <p className="text-[15px] font-semibold text-[#191919] leading-snug mb-3">
-            {listing.title}
-          </p>
-
-          {/* Price */}
+          <p className="text-[15px] font-semibold text-[#191919] leading-snug mb-3">{listing.title}</p>
           <div className="mb-3">
             <span className="text-2xl font-bold text-[#191919]">${listing.price}</span>
             <span className="text-sm text-[#767676] ml-2">Buy It Now</span>
           </div>
-
-          {/* Condition */}
           <div className="flex items-center gap-1.5 mb-3">
             <span className="text-xs font-semibold text-[#767676] uppercase tracking-wide">Condition:</span>
             <span className="text-xs font-bold text-[#191919]">{listing.condition}</span>
           </div>
-
-          {/* Shipping */}
           <div className="flex items-center gap-1.5 mb-3">
             <Truck className="w-3.5 h-3.5 text-[#767676]" />
             <span className="text-xs text-[#767676]">{listing.shipping}</span>
           </div>
-
-          {/* Seller badges */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Star className="w-3 h-3 fill-[#F5AF02] text-[#F5AF02]" />
@@ -120,18 +175,14 @@ function EbayListingPreview({ listing, imageUrl, deviceName }: {
       {/* Description strip */}
       <div className="px-4 py-3 border-t border-[#e5e5e5] bg-[#fafafa]">
         <p className="text-[11px] font-bold text-[#767676] uppercase tracking-wide mb-1.5">Item Description</p>
-        <p className="text-xs text-[#191919] leading-relaxed whitespace-pre-line line-clamp-4">
-          {listing.description}
-        </p>
+        <p className="text-xs text-[#191919] leading-relaxed whitespace-pre-line line-clamp-4">{listing.description}</p>
       </div>
 
       {/* Tags */}
       {listing.tags.length > 0 && (
         <div className="px-4 py-2.5 border-t border-[#e5e5e5] flex flex-wrap gap-1.5">
           {listing.tags.map(tag => (
-            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#e5f0ff] text-[#0064D2] border border-[#cce0ff]">
-              {tag}
-            </span>
+            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#e5f0ff] text-[#0064D2] border border-[#cce0ff]">{tag}</span>
           ))}
         </div>
       )}
@@ -141,9 +192,31 @@ function EbayListingPreview({ listing, imageUrl, deviceName }: {
 
 const ListingPage = () => {
   const navigate = useNavigate();
-  const { result, listing: ctxListing, setListing, addToHistory, resetScan } = useScan();
+  const { result, listing: ctxListing, setListing, addToHistory, resetScan, files } = useScan();
   const [listing, setLocalListing] = useState<ListingData | null>(ctxListing);
   const [listingLoading, setListingLoading] = useState(!ctxListing && result?.decision === "sell");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const photosBuilt = useRef(false);
+
+  // Extract photos/video-frames from the uploaded files
+  useEffect(() => {
+    if (photosBuilt.current || files.length === 0) return;
+    photosBuilt.current = true;
+    (async () => {
+      const urls: string[] = [];
+      for (const f of files) {
+        if (f.type.startsWith("image/")) {
+          urls.push(URL.createObjectURL(f));
+        } else if (f.type.startsWith("video/")) {
+          const frames = await extractVideoFrames(f, 4);
+          urls.push(...frames);
+        }
+      }
+      setPhotos(urls);
+    })();
+    // Clean up object URLs when component unmounts
+    return () => { photos.forEach(u => { if (u.startsWith("blob:")) URL.revokeObjectURL(u); }); };
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     if (result) addToHistory(result);
@@ -158,9 +231,6 @@ const ListingPage = () => {
   if (!result) { navigate("/"); return null; }
 
   const handleScanAnother = () => { resetScan(); navigate("/upload"); };
-
-  // Pick best image from comparables for the preview
-  const previewImageUrl = result.comparables.find(c => c.imageUrl)?.imageUrl ?? "";
 
   const ebayPostUrl = `https://www.ebay.com/sl/sell`;
 
@@ -188,7 +258,7 @@ const ListingPage = () => {
                   {/* Visual eBay listing preview */}
                   <EbayListingPreview
                     listing={listing}
-                    imageUrl={previewImageUrl}
+                    photos={photos}
                     deviceName={result.deviceName}
                   />
 

@@ -2,30 +2,29 @@ import { useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, ArrowRight } from "lucide-react";
 import { useScan } from "@/context/ScanContext";
-import { simulateAIDiagnostics } from "@/lib/mock-ai";
+import { identifyDevice } from "@/lib/api";
 
 const HeroSection = () => {
   const navigate = useNavigate();
   const { setFiles, setDiagnostics } = useScan();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const processFiles = useCallback(async (fileList: File[]) => {
+    const imageFiles = fileList.filter(f => f.type.startsWith("image/"));
+    setFiles(fileList);
+    navigate("/upload");
+    // Kick off identify in background — UploadPage will handle it on Continue
+  }, [setFiles, navigate]);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/") || f.type.startsWith("video/"));
-    if (dropped.length) {
-      setFiles(dropped);
-      setDiagnostics(simulateAIDiagnostics());
-      navigate("/diagnostics");
-    }
-  }, [setFiles, setDiagnostics, navigate]);
+    if (dropped.length) processFiles(dropped);
+  }, [processFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) {
-      setFiles(Array.from(e.target.files));
-      setDiagnostics(simulateAIDiagnostics());
-      navigate("/diagnostics");
-    }
-  }, [setFiles, setDiagnostics, navigate]);
+    if (e.target.files?.length) processFiles(Array.from(e.target.files));
+  }, [processFiles]);
 
   return (
     <section className="relative z-10 pt-24 pb-16 text-center">
