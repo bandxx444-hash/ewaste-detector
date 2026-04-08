@@ -32,6 +32,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── eBay Finding API ───────────────────────────────────────────────────────────
+
+EBAY_APP_ID = os.environ.get("EBAY_APP_ID", "")
+EBAY_OAUTH_TOKEN = os.environ.get("EBAY_OAUTH_TOKEN", "")
+
+async def ebay_sold_listings(query: str, limit: int = 3) -> list[dict]:
+    """Fetch active eBay listings via the Browse API using OAuth token."""
+    if not EBAY_OAUTH_TOKEN:
+        return []
+    url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+    params = {
+        "q": query,
+        "limit": limit,
+        "filter": "conditionIds:{3000}",
+    }
+    headers = {
+        "Authorization": f"Bearer {EBAY_OAUTH_TOKEN}",
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, params=params, headers=headers)
+        print(f"eBay Browse API status: {r.status_code}")
+        data = r.json()
+        if r.status_code != 200:
+            print(f"eBay Browse API error: {data}")
+            return []
+        items = data.get("itemSummaries", [])
+        results = []
+        for item in items[:limit]:
+            price_val = float(item.get("price", {}).get("value", 0))
+            image_url = item.get("image", {}).get("imageUrl", "")
+            results.append({
+                "title": item.get("title", ""),
+                "soldPrice": price_val,
+                "condition": item.get("condition", "Used"),
+                "soldDate": "",
+                "variant": "",
+                "imageUrl": image_url,
+                "ebayUrl": item.get("itemWebUrl", "https://www.ebay.com"),
+            })
+        return results
+    except Exception as e:
+        print(f"eBay Browse API error: {e}")
+        return []
+
+
 # ── GET /api/image-proxy ───────────────────────────────────────────────────────
 
 @app.get("/api/image-proxy")
@@ -197,39 +244,42 @@ async def analyze(
         name=name, brand=brand, model=model, year=year
     )})
 
+    # Fetch real eBay sold listings in parallel with Claude analysis
+    ebay_query = f"{brand} {name} {model}".strip()
     client = anthropic.Anthropic()
+    ebay_task = ebay_sold_listings(ebay_query, limit=3)
+
     resp = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=1500,
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+        max_tokens=1000,
         messages=[{"role": "user", "content": blocks}],
     )
 
     raw = None
     for block in reversed(resp.content):
-        if block.type == "text" and block.text.strip():
+        if hasattr(block, "text") and block.text.strip():
             raw = extract_json(block.text)
             break
     if not raw:
         raise ValueError("No analysis response from Claude.")
 
-    # Build comparables and fetch real images from listing pages
-    raw_comparables = raw.get("comparable_listings", [])
-    image_tasks = [fetch_ebay_image(c.get("url", "")) for c in raw_comparables]
-    scraped_images = await asyncio.gather(*image_tasks)
-
-    comparables = [
-        {
-            "title": c.get("title", ""),
-            "soldPrice": c.get("price", 0),
-            "condition": c.get("condition", "Used"),
-            "soldDate": c.get("sold_date", ""),
-            "variant": c.get("variant", ""),
-            "imageUrl": scraped_images[i] or (c.get("image_urls") or [""])[0],
-            "ebayUrl": c.get("url", "https://www.ebay.com"),
-        }
-        for i, c in enumerate(raw_comparables)
-    ]
+    # Use real eBay listings if available, else fall back to Claude's estimates
+    comparables = await ebay_task
+    if not comparables:
+        # Fall back to comparable listings Claude generated in its analysis
+        claude_comps = raw.get("comparable_listings", [])
+        comparables = []
+        for c in claude_comps[:3]:
+            image_urls = c.get("image_urls", [])
+            comparables.append({
+                "title": c.get("title", ""),
+                "soldPrice": float(c.get("price", 0)),
+                "condition": c.get("condition", "Used"),
+                "soldDate": c.get("sold_date", ""),
+                "variant": c.get("variant", ""),
+                "imageUrl": image_urls[0] if image_urls else "",
+                "ebayUrl": c.get("url", "https://www.ebay.com"),
+            })
 
     low = raw.get("estimated_value_low", 0)
     high = raw.get("estimated_value_high", 0)
@@ -289,22 +339,14 @@ async def listing(result: str = Form(...)):
     shipping = raw.get("shipping_recommendation", "")
     tags = raw.get("keywords", [])
 
-    text = f"""{title}
-
-TITLE: {title}
-
-CONDITION: {cond}
-
-DESCRIPTION:
-{desc}
-
-SUGGESTED PRICE: ${price} USD
-
-SHIPPING: {shipping}
-
-TAGS: {', '.join(tags)}"""
-
-    return {"listing": text}
+    return {
+        "title": title,
+        "condition": cond,
+        "description": desc,
+        "price": price,
+        "shipping": shipping,
+        "tags": tags,
+    }
 
 
 # ── Serve React frontend (must be last) ────────────────────────────────────────
@@ -319,4 +361,8 @@ if os.path.isdir(DIST):
         file = os.path.join(DIST, full_path)
         if os.path.isfile(file):
             return FileResponse(file)
-        return FileResponse(os.path.join(DIST, "index.html"))
+        # Never cache index.html so browsers always get the latest JS bundle
+        return FileResponse(
+            os.path.join(DIST, "index.html"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )

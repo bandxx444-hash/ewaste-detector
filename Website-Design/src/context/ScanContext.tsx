@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
+import type { ListingData } from "@/lib/api";
 
 export type DeviceCondition = "Excellent" | "Good" | "Fair" | "Poor";
 export type Decision = "sell" | "trade-in" | "recycle";
@@ -51,6 +52,8 @@ interface ScanContextType {
   setDiagnostics: (d: DiagnosticsData) => void;
   result: ScanResult | null;
   setResult: (r: ScanResult | null) => void;
+  listing: ListingData | null;
+  setListing: (l: ListingData | null) => void;
   scanHistory: ScanResult[];
   addToHistory: (r: ScanResult) => void;
   clearHistory: () => void;
@@ -79,6 +82,7 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [files, setFiles] = useState<File[]>([]);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsData>(defaultDiagnostics);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [listing, setListing] = useState<ListingData | null>(null);
   const [scanHistory, setScanHistory] = useState<ScanResult[]>(() => {
     try {
       const saved = sessionStorage.getItem("ecolens_history");
@@ -103,10 +107,11 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setFiles([]);
     setDiagnostics(defaultDiagnostics);
     setResult(null);
+    setListing(null);
   }, []);
 
   return (
-    <ScanContext.Provider value={{ files, setFiles, diagnostics, setDiagnostics, result, setResult, scanHistory, addToHistory, clearHistory, resetScan }}>
+    <ScanContext.Provider value={{ files, setFiles, diagnostics, setDiagnostics, result, setResult, listing, setListing, scanHistory, addToHistory, clearHistory, resetScan }}>
       {children}
     </ScanContext.Provider>
   );

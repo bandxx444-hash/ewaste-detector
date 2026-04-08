@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ExternalLink, Package } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
@@ -13,6 +13,18 @@ const conditionColor = (c: string) => {
   return "bg-secondary text-subtle";
 };
 
+// Minimal eBay wordmark as inline SVG
+const EbayLogo = () => (
+  <svg viewBox="0 0 100 40" className="h-6 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <text x="0" y="32" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="38" letterSpacing="-2">
+      <tspan fill="#E53238">e</tspan>
+      <tspan fill="#0064D2">b</tspan>
+      <tspan fill="#F5AF02">a</tspan>
+      <tspan fill="#86B817">y</tspan>
+    </text>
+  </svg>
+);
+
 const ListingsPreviewPage = () => {
   const navigate = useNavigate();
   const { result } = useScan();
@@ -22,9 +34,16 @@ const ListingsPreviewPage = () => {
 
   const listing = result.comparables[idx];
   const total = result.comparables.length;
+  const hasImage = !!(listing.imageUrl && !imgError);
 
-  const handlePrev = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setIdx(Math.max(0, idx - 1)); setImgError(false); };
-  const handleNext = (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setIdx(Math.min(total - 1, idx + 1)); setImgError(false); };
+  const handlePrev = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setIdx(Math.max(0, idx - 1)); setImgError(false);
+  };
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setIdx(Math.min(total - 1, idx + 1)); setImgError(false);
+  };
 
   return (
     <div className="min-h-screen relative">
@@ -46,61 +65,97 @@ const ListingsPreviewPage = () => {
             <span className="text-xs text-subtle">{idx + 1} / {total}</span>
           </div>
 
-          {/* Clickable listing card — full image */}
+          {/* Card */}
           <a
             href={listing.ebayUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block rounded-2xl overflow-hidden border border-border hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer"
-            style={{ background: "hsl(40 20% 96%)" }}
+            className="block rounded-2xl overflow-hidden border border-border hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-200 group cursor-pointer bg-white"
           >
-            {/* Big image */}
-            <div className="relative h-72 flex items-center justify-center">
-              {listing.imageUrl && !imgError ? (
+            {hasImage ? (
+              /* ── Image mode ── */
+              <div className="relative h-64 flex items-center justify-center bg-[hsl(40_20%_97%)]">
                 <img
                   src={listing.imageUrl}
                   alt={listing.title}
                   className="w-full h-full object-contain p-6"
                   onError={() => setImgError(true)}
                 />
-              ) : (
-                <div className="text-center text-faintest">
-                  <Package className="w-14 h-14 mx-auto mb-2 opacity-25" />
-                  <p className="text-sm opacity-50">No image available</p>
-                </div>
-              )}
-
-              {/* Nav arrows */}
-              <button onClick={handlePrev} disabled={idx === 0}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-border shadow flex items-center justify-center hover:bg-white disabled:opacity-25 transition-all z-10">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button onClick={handleNext} disabled={idx === total - 1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-border shadow flex items-center justify-center hover:bg-white disabled:opacity-25 transition-all z-10">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-
-              {/* "Open on eBay" hover overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                <div className="bg-white rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-semibold text-foreground shadow opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ExternalLink className="w-4 h-4 text-primary" /> Open on eBay
+                {/* Nav arrows */}
+                <button onClick={handlePrev} disabled={idx === 0}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-border shadow flex items-center justify-center hover:bg-white disabled:opacity-25 transition-all z-10">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={handleNext} disabled={idx === total - 1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 border border-border shadow flex items-center justify-center hover:bg-white disabled:opacity-25 transition-all z-10">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/8 transition-colors flex items-end justify-center pb-4">
+                  <div className="bg-white rounded-xl px-4 py-2 flex items-center gap-2 text-sm font-semibold text-foreground shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ExternalLink className="w-4 h-4 text-primary" /> Open on eBay
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* ── No-image mode: clean listing card ── */
+              <div className="relative px-6 pt-6 pb-5"
+                style={{ background: "linear-gradient(135deg, hsl(153 70% 38% / 0.04), hsl(43 75% 50% / 0.04))" }}>
 
-            {/* Price strip */}
-            <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-white/60">
-              <span className="font-bold gradient-text text-lg">${listing.soldPrice}</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${conditionColor(listing.condition)}`}>{listing.condition}</span>
-              <span className="ml-auto text-xs text-subtle">Sold {listing.soldDate}</span>
-            </div>
+                {/* Nav arrows */}
+                <button onClick={handlePrev} disabled={idx === 0}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white border border-border shadow flex items-center justify-center hover:bg-secondary disabled:opacity-25 transition-all z-10">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={handleNext} disabled={idx === total - 1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white border border-border shadow flex items-center justify-center hover:bg-secondary disabled:opacity-25 transition-all z-10">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                {/* eBay logo + "Sold listing" */}
+                <div className="flex items-center gap-2 mb-4">
+                  <EbayLogo />
+                  <span className="text-xs text-subtle font-medium">Sold listing</span>
+                </div>
+
+                {/* Title */}
+                <p className="text-sm font-semibold text-foreground leading-snug mb-5 pr-8">
+                  {listing.title}
+                </p>
+
+                {/* Price + badges */}
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="text-3xl font-display font-bold gradient-text">${listing.soldPrice}</span>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${conditionColor(listing.condition)}`}>
+                    {listing.condition}
+                  </span>
+                </div>
+
+                {/* Meta row */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-subtle">Sold {listing.soldDate}</span>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-primary group-hover:underline">
+                    View listing <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Price strip — only shown in image mode */}
+            {hasImage && (
+              <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-white">
+                <span className="font-bold gradient-text text-lg">${listing.soldPrice}</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${conditionColor(listing.condition)}`}>{listing.condition}</span>
+                <span className="ml-auto text-xs text-subtle">Sold {listing.soldDate}</span>
+              </div>
+            )}
           </a>
 
           {/* Dot indicators */}
           <div className="flex justify-center gap-1.5 mt-3">
             {result.comparables.map((_, i) => (
               <button key={i} onClick={() => { setIdx(i); setImgError(false); }}
-                className={`w-2 h-2 rounded-full transition-all ${i === idx ? "bg-primary w-4" : "bg-border hover:bg-primary/40"}`} />
+                className={`h-2 rounded-full transition-all duration-300 ${i === idx ? "w-5 bg-primary" : "w-2 bg-border hover:bg-primary/40"}`} />
             ))}
           </div>
         </div>

@@ -1,56 +1,77 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, BarChart3, FileText, CheckCircle } from "lucide-react";
+import { Search, BarChart3, FileText, Tag, CheckCircle } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
 import { useScan } from "@/context/ScanContext";
 import { getRandomFact } from "@/lib/mock-ai";
-import { analyzeDevice } from "@/lib/api";
+import { analyzeDevice, generateListing } from "@/lib/api";
 
 const phases = [
-  { icon: Search, label: "Searching marketplace listings..." },
-  { icon: BarChart3, label: "Grading device condition..." },
-  { icon: FileText, label: "Building your valuation..." },
-  { icon: CheckCircle, label: "Finalizing results..." },
+  { icon: Search,       label: "Searching marketplace listings..." },
+  { icon: BarChart3,    label: "Grading device condition..." },
+  { icon: FileText,     label: "Building your valuation..." },
+  { icon: Tag,          label: "Generating your eBay listing..." },
+  { icon: CheckCircle,  label: "Finalizing results..." },
 ];
 
 const LoadingPage = () => {
   const navigate = useNavigate();
-  const { diagnostics, files, setResult } = useScan();
+  const { diagnostics, files, setResult, setListing } = useScan();
   const [fact] = useState(getRandomFact);
   const [phase, setPhase] = useState(0);
-  const [scanProgress, setScanProgress] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const called = useRef(false);
+  const progressRef = useRef(0);
+  const listingPhaseRef = useRef(false);
 
-  // Animate phase labels
+  // Smooth asymptotic progress — approaches target but never stalls
   useEffect(() => {
-    const durations = [2000, 2000, 2000, 1000];
-    if (phase < phases.length - 1) {
+    const interval = setInterval(() => {
+      setProgress(p => {
+        const target = listingPhaseRef.current ? 99 : 88;
+        const step = (target - p) * 0.018;
+        const next = p + Math.max(step, 0.05);
+        progressRef.current = Math.min(next, target);
+        return progressRef.current;
+      });
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Advance phase labels
+  useEffect(() => {
+    const durations = [3500, 3000, 3000, 0, 0]; // phase 3 & 4 triggered by API
+    if (phase < 2) {
       const t = setTimeout(() => setPhase(p => p + 1), durations[phase]);
       return () => clearTimeout(t);
     }
   }, [phase]);
 
-  // Animate progress bar (stops at 95 until API returns)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setScanProgress(p => p < 95 ? Math.min(p + 0.8, 95) : p);
-    }, 40);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Call real API once
+  // Call APIs once
   useEffect(() => {
     if (called.current) return;
     called.current = true;
 
     analyzeDevice(diagnostics, files)
-      .then(result => {
-        setScanProgress(100);
+      .then(async result => {
         setResult(result);
-        navigate("/listings-preview");
+        // Phase 3: generate listing
+        if (result.decision === "sell") {
+          setPhase(3);
+          listingPhaseRef.current = true;
+          try {
+            const listingData = await generateListing(result);
+            setListing(listingData);
+          } catch {
+            // non-fatal — ListingPage will retry
+          }
+        }
+        setPhase(4);
+        setProgress(100);
+        setTimeout(() => navigate("/listings-preview"), 400);
       })
       .catch(err => {
         console.error(err);
@@ -65,7 +86,7 @@ const LoadingPage = () => {
       <BackgroundOrbs />
       <Navbar />
       <main className="container mx-auto px-4 max-w-lg relative z-10 pt-20 pb-20 text-center font-sans">
-        <ProgressBar percent={55} />
+        <ProgressBar percent={progress} />
 
         <div className="mt-12 animate-fade-in-up">
           {/* Scan visualization */}
@@ -84,7 +105,7 @@ const LoadingPage = () => {
             <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 176 176">
               <circle cx="88" cy="88" r="74" fill="none" stroke="hsl(150 15% 88%)" strokeWidth="3" />
               <circle cx="88" cy="88" r="74" fill="none" stroke="url(#progressGrad2)" strokeWidth="3" strokeLinecap="round"
-                strokeDasharray={`${scanProgress * 4.65} 465`} className="transition-all duration-100 ease-linear" />
+                strokeDasharray={`${progress * 4.65} 465`} className="transition-all duration-200 ease-linear" />
               <defs>
                 <linearGradient id="progressGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="hsl(153 70% 38%)" />
@@ -106,10 +127,10 @@ const LoadingPage = () => {
           ) : (
             <p className="text-sm text-primary font-medium mb-1 h-5">{phases[phase].label}</p>
           )}
-          <p className="text-xs text-faintest mb-8">{Math.round(scanProgress)}% complete</p>
+          <p className="text-xs text-faintest mb-8">{Math.round(progress)}% complete</p>
 
           <div className="flex items-center justify-center gap-2 mb-10">
-            {phases.map((_, i) => (
+            {phases.slice(0, 4).map((_, i) => (
               <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i <= phase ? "w-8" : "w-3"}`}
                 style={{ background: i <= phase ? "linear-gradient(90deg, hsl(153 70% 38%), hsl(43 75% 50%))" : "hsl(150 15% 85%)" }} />
             ))}

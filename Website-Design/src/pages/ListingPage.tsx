@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Download, ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2 } from "lucide-react";
+import { ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
 import { useScan } from "@/context/ScanContext";
-import { generateListing } from "@/lib/api";
+import { generateListing, type ListingData } from "@/lib/api";
 
 const tradeInLinks = [
   { name: "Best Buy Trade-In", url: "https://www.bestbuy.com/trade-in", desc: "Trade in electronics for Best Buy gift cards." },
@@ -19,37 +19,150 @@ const recycleLinks = [
   { name: "Earth911", url: "https://earth911.com", desc: "Find a local recycling center near you." },
 ];
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={copy}
+      className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors text-subtle hover:text-foreground">
+      {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+const EbayWordmark = () => (
+  <svg viewBox="0 0 100 40" className="h-7 w-auto" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <text x="0" y="32" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="38" letterSpacing="-2">
+      <tspan fill="#E53238">e</tspan>
+      <tspan fill="#0064D2">b</tspan>
+      <tspan fill="#F5AF02">a</tspan>
+      <tspan fill="#86B817">y</tspan>
+    </text>
+  </svg>
+);
+
+function EbayListingPreview({ listing, imageUrl, deviceName }: {
+  listing: ListingData;
+  imageUrl: string;
+  deviceName: string;
+}) {
+  const [imgErr, setImgErr] = useState(false);
+  const hasImg = !!(imageUrl && !imgErr);
+
+  return (
+    <div className="rounded-2xl border border-border overflow-hidden bg-white shadow-lg mb-5 text-left">
+      {/* eBay top bar */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#e5e5e5] bg-white">
+        <EbayWordmark />
+        <span className="text-xs text-[#767676] ml-1">Listing Preview</span>
+      </div>
+
+      <div className="flex flex-col sm:flex-row">
+        {/* Left: image */}
+        <div className="sm:w-48 shrink-0 bg-[#f7f7f7] flex items-center justify-center p-4 min-h-[160px]">
+          {hasImg ? (
+            <img
+              src={imageUrl}
+              alt={deviceName}
+              className="max-h-36 max-w-full object-contain"
+              onError={() => setImgErr(true)}
+            />
+          ) : (
+            <div className="w-28 h-28 rounded-xl bg-[#e5e5e5] flex items-center justify-center">
+              <span className="text-[11px] text-[#767676] text-center px-2">Your photo<br/>goes here</span>
+            </div>
+          )}
+        </div>
+
+        {/* Right: details */}
+        <div className="flex-1 p-4">
+          {/* Title */}
+          <p className="text-[15px] font-semibold text-[#191919] leading-snug mb-3">
+            {listing.title}
+          </p>
+
+          {/* Price */}
+          <div className="mb-3">
+            <span className="text-2xl font-bold text-[#191919]">${listing.price}</span>
+            <span className="text-sm text-[#767676] ml-2">Buy It Now</span>
+          </div>
+
+          {/* Condition */}
+          <div className="flex items-center gap-1.5 mb-3">
+            <span className="text-xs font-semibold text-[#767676] uppercase tracking-wide">Condition:</span>
+            <span className="text-xs font-bold text-[#191919]">{listing.condition}</span>
+          </div>
+
+          {/* Shipping */}
+          <div className="flex items-center gap-1.5 mb-3">
+            <Truck className="w-3.5 h-3.5 text-[#767676]" />
+            <span className="text-xs text-[#767676]">{listing.shipping}</span>
+          </div>
+
+          {/* Seller badges */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <Star className="w-3 h-3 fill-[#F5AF02] text-[#F5AF02]" />
+              <span className="text-[11px] text-[#767676]">Top Rated Seller</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-[#0064D2]" />
+              <span className="text-[11px] text-[#767676]">eBay Money Back Guarantee</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Description strip */}
+      <div className="px-4 py-3 border-t border-[#e5e5e5] bg-[#fafafa]">
+        <p className="text-[11px] font-bold text-[#767676] uppercase tracking-wide mb-1.5">Item Description</p>
+        <p className="text-xs text-[#191919] leading-relaxed whitespace-pre-line line-clamp-4">
+          {listing.description}
+        </p>
+      </div>
+
+      {/* Tags */}
+      {listing.tags.length > 0 && (
+        <div className="px-4 py-2.5 border-t border-[#e5e5e5] flex flex-wrap gap-1.5">
+          {listing.tags.map(tag => (
+            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#e5f0ff] text-[#0064D2] border border-[#cce0ff]">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ListingPage = () => {
   const navigate = useNavigate();
-  const { result, addToHistory, resetScan } = useScan();
-  const [listing, setListing] = useState<string | null>(null);
-  const [listingLoading, setListingLoading] = useState(false);
+  const { result, listing: ctxListing, setListing, addToHistory, resetScan } = useScan();
+  const [listing, setLocalListing] = useState<ListingData | null>(ctxListing);
+  const [listingLoading, setListingLoading] = useState(!ctxListing && result?.decision === "sell");
 
   useEffect(() => {
-    if (result) {
-      addToHistory(result);
-      if (result.decision === "sell") {
-        setListingLoading(true);
-        generateListing(result)
-          .then(text => setListing(text))
-          .catch(() => setListing("Could not generate listing. Please try again."))
-          .finally(() => setListingLoading(false));
-      }
+    if (result) addToHistory(result);
+    if (result?.decision === "sell" && !ctxListing) {
+      generateListing(result)
+        .then(data => { setLocalListing(data); setListing(data); })
+        .catch(() => setLocalListing(null))
+        .finally(() => setListingLoading(false));
     }
   }, []); // eslint-disable-line
 
   if (!result) { navigate("/"); return null; }
 
-  const downloadListing = () => {
-    if (!listing) return;
-    const blob = new Blob([listing], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `ecolens-listing-${result.id.slice(0, 8)}.txt`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleScanAnother = () => { resetScan(); navigate("/upload"); };
+
+  // Pick best image from comparables for the preview
+  const previewImageUrl = result.comparables.find(c => c.imageUrl)?.imageUrl ?? "";
+
+  const ebayPostUrl = `https://www.ebay.com/sl/sell`;
 
   return (
     <div className="min-h-screen relative">
@@ -62,30 +175,101 @@ const ListingPage = () => {
 
           {result.decision === "sell" && (
             <>
-              <h1 className="text-2xl md:text-3xl font-display font-bold mb-6">Your Ready-to-Post Listing</h1>
-              <div className="glass-card text-left mb-4">
-                {listingLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-8 text-subtle">
-                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    <span className="text-sm">Generating your listing…</span>
+              <h1 className="text-2xl md:text-3xl font-display font-bold mb-2">Your eBay Listing</h1>
+              <p className="text-sm text-subtle mb-6">Preview your listing below, then copy the details to post on eBay.</p>
+
+              {listingLoading ? (
+                <div className="glass-card flex items-center justify-center gap-2 py-12 mb-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  <span className="text-sm text-subtle">Generating your listing…</span>
+                </div>
+              ) : listing ? (
+                <>
+                  {/* Visual eBay listing preview */}
+                  <EbayListingPreview
+                    listing={listing}
+                    imageUrl={previewImageUrl}
+                    deviceName={result.deviceName}
+                  />
+
+                  {/* Copy fields */}
+                  <div className="space-y-3 mb-5 text-left">
+                    <p className="text-xs text-subtle font-semibold uppercase tracking-wide">Copy &amp; Paste to eBay</p>
+
+                    {/* Title */}
+                    <div className="glass-card p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Title</span>
+                        <CopyButton text={listing.title} />
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">{listing.title}</p>
+                    </div>
+
+                    {/* Condition + Price row */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="glass-card p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Condition</span>
+                          <CopyButton text={listing.condition} />
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">{listing.condition}</p>
+                      </div>
+                      <div className="glass-card p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Suggested Price</span>
+                          <CopyButton text={`$${listing.price}`} />
+                        </div>
+                        <p className="text-lg font-display font-bold gradient-text">${listing.price}</p>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div className="glass-card p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Description</span>
+                        <CopyButton text={listing.description} />
+                      </div>
+                      <p className="text-sm text-body leading-relaxed whitespace-pre-line">{listing.description}</p>
+                    </div>
+
+                    {/* Shipping + Tags row */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="glass-card p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Shipping</span>
+                          <CopyButton text={listing.shipping} />
+                        </div>
+                        <p className="text-xs text-body">{listing.shipping}</p>
+                      </div>
+                      <div className="glass-card p-4">
+                        <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle block mb-2">Tags</span>
+                        <div className="flex flex-wrap gap-1">
+                          {listing.tags.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
+                              <Tag className="w-2.5 h-2.5" />{tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <pre className="whitespace-pre-wrap text-sm font-mono text-foreground/80 leading-relaxed rounded-xl p-5 border border-border"
-                    style={{ background: "hsl(40 30% 96%)" }}>
-                    {listing}
-                  </pre>
-                )}
-              </div>
-              <div className="flex gap-3 mb-6">
-                <button onClick={downloadListing} disabled={!listing || listingLoading}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border border-border bg-card text-foreground hover:bg-secondary transition-colors disabled:opacity-50">
-                  <Download className="w-4 h-4" /> Download .txt
-                </button>
-                <a href={`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(result.deviceName)}`} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm border border-border bg-card text-foreground hover:bg-secondary transition-colors">
-                  <ExternalLink className="w-4 h-4" /> Search on eBay
-                </a>
-              </div>
+                </>
+              ) : (
+                <div className="glass-card py-8 mb-4 text-center text-subtle text-sm">
+                  Could not generate listing. Use the eBay button below.
+                </div>
+              )}
+
+              {/* CTA: Post on eBay */}
+              <a
+                href={ebayPostUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full mb-3 py-4 rounded-xl font-bold text-[16px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
+                <ExternalLink className="w-5 h-5" /> Post on eBay →
+              </a>
+              <p className="text-xs text-subtle mb-4">Copy the fields above and paste them into eBay's listing form.</p>
             </>
           )}
 
