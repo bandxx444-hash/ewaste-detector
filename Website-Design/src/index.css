@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -67,7 +67,7 @@
     font-family: 'DM Sans', system-ui, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
     @apply text-foreground font-bold;
   }
 }
@@ -92,16 +92,37 @@
     @apply rounded-2xl p-8 border shadow-card;
     background: hsl(0 0% 100%);
     border-color: hsl(150 15% 85%);
-    transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+    transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s;
   }
   .glass-card:hover {
     border-color: hsl(153 70% 38% / 0.35);
-    box-shadow: 0 8px 40px rgba(15, 138, 95, 0.08), 0 0 0 1px rgba(15, 138, 95, 0.05);
-    transform: translateY(-1px);
+    box-shadow: 0 12px 48px rgba(15, 138, 95, 0.1), 0 0 0 1px rgba(15, 138, 95, 0.06);
+    transform: translateY(-3px);
+  }
+
+  .glass-card-glow {
+    @apply glass-card;
+    position: relative;
+    overflow: hidden;
+  }
+  .glass-card-glow::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, hsl(153 70% 38% / 0.04), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+  }
+  .glass-card-glow:hover::after {
+    opacity: 1;
   }
 
   .font-display {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
   }
   .font-body {
     font-family: 'DM Sans', system-ui, sans-serif;
@@ -128,6 +149,37 @@
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
+  }
+
+  .gradient-btn {
+    background: linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%));
+    position: relative;
+    overflow: hidden;
+  }
+  .gradient-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, hsl(153 70% 42%), hsl(43 75% 50% / 0.3));
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .gradient-btn:hover::before {
+    opacity: 1;
+  }
+
+  .floating-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: hsl(153 70% 38% / 0.3);
+    animation: particleFloat 8s ease-in-out infinite;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(153 70% 38% / 0.2), hsl(43 75% 50% / 0.15), transparent);
   }
 }
 
@@ -160,4 +212,39 @@
 @keyframes scanLine {
   0% { top: 0; }
   100% { top: 100%; }
+}
+
+@keyframes particleFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(30px, -60px) scale(1.5); opacity: 0.6; }
+  90% { opacity: 0; }
+}
+
+@keyframes orbitSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes particleRise {
+  0%   { opacity: 0; transform: translateY(0); }
+  10%  { opacity: 0.85; }
+  80%  { opacity: 0.5; }
+  100% { opacity: 0; transform: translateY(-700px); }
+}
+
+/* Reduce hover lift on glass-card for smoother feel */
+.glass-card:hover {
+  transform: translateY(-2px) !important;
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s !important;
+}
+
+/* will-change hint for animated orbs */
+.animate-blob {
+  will-change: transform;
 }

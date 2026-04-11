@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck, MapPin, Navigation } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
@@ -30,6 +30,17 @@ function CopyButton({ text }: { text: string }) {
     <button onClick={copy}
       className="shrink-0 p-1.5 rounded-lg hover:bg-secondary transition-colors text-subtle hover:text-foreground">
       {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+function CopyAllButton({ onCopy }: { onCopy: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  return (
+    <button onClick={handle}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border hover:bg-secondary transition-colors text-subtle hover:text-foreground">
+      {copied ? <><Check className="w-3 h-3 text-primary" /> Copied!</> : <><Copy className="w-3 h-3" /> Copy All</>}
     </button>
   );
 }
@@ -89,45 +100,29 @@ function EbayListingPreview({ listing, photos, deviceName }: {
 
   return (
     <div className="rounded-2xl border border-border overflow-hidden bg-white shadow-lg mb-5 text-left">
-      {/* eBay top bar */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#e5e5e5] bg-white">
         <EbayWordmark />
         <span className="text-xs text-[#767676] ml-1">Listing Preview</span>
       </div>
-
       <div className="flex flex-col sm:flex-row">
-        {/* Left: photo carousel */}
         <div className="sm:w-52 shrink-0 bg-[#f7f7f7] flex flex-col items-center justify-center min-h-[200px] relative">
           {total > 0 ? (
             <>
               <div className="relative w-full flex items-center justify-center" style={{ minHeight: 180 }}>
-                <img
-                  key={current}
-                  src={current}
-                  alt={`${deviceName} photo ${photoIdx + 1}`}
-                  className="max-h-44 max-w-full object-contain p-3"
-                />
-                {/* Arrows */}
+                <img key={current} src={current} alt={`${deviceName} photo ${photoIdx + 1}`} className="max-h-44 max-w-full object-contain p-3" />
                 {total > 1 && (
                   <>
-                    <button
-                      onClick={() => setPhotoIdx(i => Math.max(0, i - 1))}
-                      disabled={photoIdx === 0}
-                      className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10"
-                    >
+                    <button onClick={() => setPhotoIdx(i => Math.max(0, i - 1))} disabled={photoIdx === 0}
+                      className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10">
                       <ChevronLeft className="w-3.5 h-3.5 text-[#555]" />
                     </button>
-                    <button
-                      onClick={() => setPhotoIdx(i => Math.min(total - 1, i + 1))}
-                      disabled={photoIdx === total - 1}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10"
-                    >
+                    <button onClick={() => setPhotoIdx(i => Math.min(total - 1, i + 1))} disabled={photoIdx === total - 1}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/90 border border-[#e5e5e5] shadow flex items-center justify-center disabled:opacity-25 hover:bg-white transition-all z-10">
                       <ChevronRight className="w-3.5 h-3.5 text-[#555]" />
                     </button>
                   </>
                 )}
               </div>
-              {/* Dot indicators */}
               {total > 1 && (
                 <div className="flex gap-1 pb-2">
                   {photos.map((_, i) => (
@@ -143,8 +138,6 @@ function EbayListingPreview({ listing, photos, deviceName }: {
             </div>
           )}
         </div>
-
-        {/* Right: details */}
         <div className="flex-1 p-4">
           <p className="text-[15px] font-semibold text-[#191919] leading-snug mb-3">{listing.title}</p>
           <div className="mb-3">
@@ -171,19 +164,95 @@ function EbayListingPreview({ listing, photos, deviceName }: {
           </div>
         </div>
       </div>
-
-      {/* Description strip */}
       <div className="px-4 py-3 border-t border-[#e5e5e5] bg-[#fafafa]">
         <p className="text-[11px] font-bold text-[#767676] uppercase tracking-wide mb-1.5">Item Description</p>
         <p className="text-xs text-[#191919] leading-relaxed whitespace-pre-line line-clamp-4">{listing.description}</p>
       </div>
-
-      {/* Tags */}
       {listing.tags.length > 0 && (
         <div className="px-4 py-2.5 border-t border-[#e5e5e5] flex flex-wrap gap-1.5">
           {listing.tags.map(tag => (
             <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#e5f0ff] text-[#0064D2] border border-[#cce0ff]">{tag}</span>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RecyclingMap() {
+  const [status, setStatus] = useState<"idle" | "loading" | "granted" | "denied">("idle");
+  const [mapSrc, setMapSrc] = useState<string | null>(null);
+  const [gmapsUrl, setGmapsUrl] = useState<string | null>(null);
+
+  const requestLocation = () => {
+    setStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setMapSrc(
+          `https://maps.google.com/maps?q=e-waste+recycling+near+me&ll=${lat},${lng}&z=13&output=embed`
+        );
+        setGmapsUrl(
+          `https://www.google.com/maps/search/e-waste+recycling/@${lat},${lng},13z`
+        );
+        setStatus("granted");
+      },
+      () => setStatus("denied")
+    );
+  };
+
+  return (
+    <div className="glass-card text-left mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <MapPin className="w-4 h-4 text-primary" />
+        <h3 className="text-sm font-bold text-foreground">Find Recycling Centers Near You</h3>
+      </div>
+
+      {status === "idle" && (
+        <div className="text-center py-6">
+          <p className="text-xs text-subtle mb-4">Share your location to find e-waste drop-off sites nearby.</p>
+          <button onClick={requestLocation}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-primary-foreground gradient-btn">
+            <Navigation className="w-4 h-4" /> Share My Location
+          </button>
+        </div>
+      )}
+
+      {status === "loading" && (
+        <div className="flex items-center justify-center gap-2 py-8">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span className="text-sm text-subtle">Getting your location…</span>
+        </div>
+      )}
+
+      {status === "granted" && mapSrc && (
+        <>
+          <div className="rounded-xl overflow-hidden border border-border mb-3" style={{ height: 280 }}>
+            <iframe
+              src={mapSrc}
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Recycling centers near you"
+            />
+          </div>
+          <a href={gmapsUrl!} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+            <ExternalLink className="w-3 h-3" /> Open in Google Maps
+          </a>
+        </>
+      )}
+
+      {status === "denied" && (
+        <div className="text-center py-4">
+          <p className="text-xs text-subtle mb-3">Location access was denied. Search manually on Google Maps.</p>
+          <a href="https://www.google.com/maps/search/e-waste+recycling+near+me"
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+            <ExternalLink className="w-3 h-3" /> Search on Google Maps
+          </a>
         </div>
       )}
     </div>
@@ -198,23 +267,17 @@ const ListingPage = () => {
   const [photos, setPhotos] = useState<string[]>([]);
   const photosBuilt = useRef(false);
 
-  // Extract photos/video-frames from the uploaded files
   useEffect(() => {
     if (photosBuilt.current || files.length === 0) return;
     photosBuilt.current = true;
     (async () => {
       const urls: string[] = [];
       for (const f of files) {
-        if (f.type.startsWith("image/")) {
-          urls.push(URL.createObjectURL(f));
-        } else if (f.type.startsWith("video/")) {
-          const frames = await extractVideoFrames(f, 4);
-          urls.push(...frames);
-        }
+        if (f.type.startsWith("image/")) urls.push(URL.createObjectURL(f));
+        else if (f.type.startsWith("video/")) urls.push(...await extractVideoFrames(f, 4));
       }
       setPhotos(urls);
     })();
-    // Clean up object URLs when component unmounts
     return () => { photos.forEach(u => { if (u.startsWith("blob:")) URL.revokeObjectURL(u); }); };
   }, []); // eslint-disable-line
 
@@ -232,7 +295,11 @@ const ListingPage = () => {
 
   const handleScanAnother = () => { resetScan(); navigate("/upload"); };
 
-  const ebayPostUrl = `https://www.ebay.com/sl/sell`;
+  const handleCopyAll = () => {
+    if (!listing) return;
+    const text = `TITLE: ${listing.title}\n\nCONDITION: ${listing.condition}\n\nPRICE: $${listing.price}\n\nDESCRIPTION:\n${listing.description}\n\nSHIPPING: ${listing.shipping}\n\nTAGS: ${listing.tags.join(", ")}`;
+    navigator.clipboard.writeText(text);
+  };
 
   return (
     <div className="min-h-screen relative">
@@ -247,7 +314,6 @@ const ListingPage = () => {
             <>
               <h1 className="text-2xl md:text-3xl font-display font-bold mb-2">Your eBay Listing</h1>
               <p className="text-sm text-subtle mb-6">Preview your listing below, then copy the details to post on eBay.</p>
-
               {listingLoading ? (
                 <div className="glass-card flex items-center justify-center gap-2 py-12 mb-4">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -255,18 +321,12 @@ const ListingPage = () => {
                 </div>
               ) : listing ? (
                 <>
-                  {/* Visual eBay listing preview */}
-                  <EbayListingPreview
-                    listing={listing}
-                    photos={photos}
-                    deviceName={result.deviceName}
-                  />
-
-                  {/* Copy fields */}
+                  <EbayListingPreview listing={listing} photos={photos} deviceName={result.deviceName} />
                   <div className="space-y-3 mb-5 text-left">
-                    <p className="text-xs text-subtle font-semibold uppercase tracking-wide">Copy &amp; Paste to eBay</p>
-
-                    {/* Title */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-subtle font-semibold uppercase tracking-wide">Copy &amp; Paste to eBay</p>
+                      <CopyAllButton onCopy={handleCopyAll} />
+                    </div>
                     <div className="glass-card p-4">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Title</span>
@@ -274,8 +334,6 @@ const ListingPage = () => {
                       </div>
                       <p className="text-sm font-semibold text-foreground">{listing.title}</p>
                     </div>
-
-                    {/* Condition + Price row */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="glass-card p-4">
                         <div className="flex items-center justify-between mb-1">
@@ -292,8 +350,6 @@ const ListingPage = () => {
                         <p className="text-lg font-display font-bold gradient-text">${listing.price}</p>
                       </div>
                     </div>
-
-                    {/* Description */}
                     <div className="glass-card p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-subtle">Description</span>
@@ -301,8 +357,6 @@ const ListingPage = () => {
                       </div>
                       <p className="text-sm text-body leading-relaxed whitespace-pre-line">{listing.description}</p>
                     </div>
-
-                    {/* Shipping + Tags row */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="glass-card p-4">
                         <div className="flex items-center justify-between mb-1">
@@ -329,12 +383,7 @@ const ListingPage = () => {
                   Could not generate listing. Use the eBay button below.
                 </div>
               )}
-
-              {/* CTA: Post on eBay */}
-              <a
-                href={ebayPostUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <a href="https://www.ebay.com/sl/sell" target="_blank" rel="noopener noreferrer"
                 className="w-full mb-3 py-4 rounded-xl font-bold text-[16px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2"
                 style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
                 <ExternalLink className="w-5 h-5" /> Post on eBay →
@@ -371,11 +420,14 @@ const ListingPage = () => {
                 style={{ background: "linear-gradient(135deg, hsl(153 70% 38% / 0.1), hsl(43 75% 50% / 0.05))" }}>
                 <Recycle className="w-8 h-8 text-primary" />
               </div>
-              <div className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 mb-8 gradient-border"
+              <div className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 mb-6 gradient-border"
                 style={{ background: "linear-gradient(135deg, hsl(153 70% 38% / 0.08), transparent)" }}>
                 <Leaf className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium text-primary">You're keeping {result.co2Saved} lbs of CO₂ out of landfills.</span>
               </div>
+
+              <RecyclingMap />
+
               <div className="space-y-3 text-left mb-6">
                 {recycleLinks.map(l => (
                   <a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" className="glass-card flex items-center gap-4 group">

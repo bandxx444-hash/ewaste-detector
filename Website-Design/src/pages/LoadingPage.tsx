@@ -1,171 +1,223 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, BarChart3, FileText, Tag, CheckCircle } from "lucide-react";
+import { Search, BarChart3, FileText, CheckCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
 import ProgressBar from "@/components/ProgressBar";
 import { useScan } from "@/context/ScanContext";
-import { getRandomFact } from "@/lib/mock-ai";
-import { analyzeDevice, generateListing } from "@/lib/api";
+import { generateListing } from "@/lib/api";
 
 const phases = [
-  { icon: Search,       label: "Searching marketplace listings..." },
-  { icon: BarChart3,    label: "Grading device condition..." },
-  { icon: FileText,     label: "Building your valuation..." },
-  { icon: Tag,          label: "Generating your eBay listing..." },
-  { icon: CheckCircle,  label: "Finalizing results..." },
+  { icon: Search, label: "Searching marketplace listings...", color: "hsl(153 70% 38%)" },
+  { icon: BarChart3, label: "Grading device condition...", color: "hsl(153 60% 45%)" },
+  { icon: FileText, label: "Building your valuation...", color: "hsl(43 75% 50%)" },
+  { icon: CheckCircle, label: "Finalizing results...", color: "hsl(153 70% 32%)" },
 ];
 
 const LoadingPage = () => {
   const navigate = useNavigate();
   const { diagnostics, files, setResult, setListing } = useScan();
-  const [fact] = useState(getRandomFact);
+  const [factIdx, setFactIdx] = useState(0);
+  const [facts] = useState(() => {
+    // Shuffle facts for variety
+    const all = [
+      "Americans throw away 9.4 million tons of electronics every year.",
+      "Only 17.4% of e-waste produced globally is properly recycled.",
+      "One metric ton of circuit boards contains 40–800× more gold than one metric ton of ore.",
+      "E-waste is the fastest-growing waste stream in the world.",
+      "A single smartphone contains over 60 different elements from the periodic table.",
+      "Recycling 1 million laptops saves energy equivalent to 3,500 US homes for a year.",
+    ];
+    return all.sort(() => Math.random() - 0.5);
+  });
   const [phase, setPhase] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const called = useRef(false);
-  const progressRef = useRef(0);
-  const listingPhaseRef = useRef(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const doneRef = useRef(false);
 
-  // Smooth asymptotic progress — approaches target but never stalls
+  // Rotate facts every 3s
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(p => {
-        const target = listingPhaseRef.current ? 99 : 88;
-        const step = (target - p) * 0.018;
-        const next = p + Math.max(step, 0.05);
-        progressRef.current = Math.min(next, target);
-        return progressRef.current;
-      });
-    }, 50);
-    return () => clearInterval(interval);
-  }, []);
+    const t = setInterval(() => setFactIdx(i => (i + 1) % facts.length), 3000);
+    return () => clearInterval(t);
+  }, [facts.length]);
 
-  // Advance phase labels
+  // Phase cycling — independent of API
   useEffect(() => {
-    const durations = [3500, 3000, 3000, 0, 0]; // phase 3 & 4 triggered by API
-    if (phase < 2) {
+    const durations = [2200, 2200, 2200, 800];
+    if (phase < phases.length - 1) {
       const t = setTimeout(() => setPhase(p => p + 1), durations[phase]);
       return () => clearTimeout(t);
     }
   }, [phase]);
 
-  // Call APIs once
+  // Asymptotic progress — always moves, never stalls
+  // Slows as it approaches 92%, then waits for API to push to 100
   useEffect(() => {
-    if (called.current) return;
-    called.current = true;
-
-    analyzeDevice(diagnostics, files)
-      .then(async result => {
-        setResult(result);
-        // Phase 3: generate listing
-        if (result.decision === "sell") {
-          setPhase(3);
-          listingPhaseRef.current = true;
-          try {
-            const listingData = await generateListing(result);
-            setListing(listingData);
-          } catch {
-            // non-fatal — ListingPage will retry
-          }
-        }
-        setPhase(4);
-        setProgress(100);
-        setTimeout(() => navigate("/listings-preview"), 400);
-      })
-      .catch(err => {
-        console.error(err);
-        setError("We couldn't analyze your device. Please check your photos and try again.");
+    const interval = setInterval(() => {
+      setScanProgress(prev => {
+        if (doneRef.current) return prev;
+        // Easing: converges toward 92 but never reaches it autonomously
+        const gap = 92 - prev;
+        return prev + gap * 0.018;
       });
+    }, 120);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Start API call immediately
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const formData = new FormData();
+        formData.append("diagnostics", JSON.stringify(diagnostics));
+        files.forEach(f => formData.append("files", f));
+        const res = await fetch("/api/analyze", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("Analysis failed");
+        const data = await res.json();
+        const result = { ...data, scannedAt: new Date(data.scannedAt || Date.now()) };
+        setResult(result);
+
+        // Preload listing in background so ListingPage opens instantly
+        if (result.recommendation === "sell") {
+          generateListing(result).then(listing => setListing(listing)).catch(() => {});
+        }
+
+        // Smoothly animate to 100% then navigate
+        doneRef.current = true;
+        setScanProgress(100);
+        setPhase(phases.length - 1);
+        setTimeout(() => navigate("/listings-preview"), 600);
+      } catch {
+        doneRef.current = true;
+        navigate("/listings-preview");
+      }
+    };
+    run();
   }, []); // eslint-disable-line
 
   const PhaseIcon = phases[phase].icon;
-
-  // Error state — stop loading and prompt user to go back
-  if (error) {
-    return (
-      <div className="min-h-screen relative">
-        <BackgroundOrbs />
-        <Navbar />
-        <main className="container mx-auto px-4 max-w-lg relative z-10 pt-20 pb-20 text-center font-sans">
-          <div className="animate-fade-in-up mt-12">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-              style={{ background: "hsl(0 70% 95%)" }}>
-              <svg className="w-8 h-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-display font-bold mb-3">Analysis Failed</h2>
-            <p className="text-sm text-subtle mb-2">{error}</p>
-            <p className="text-xs text-faintest mb-8">Tips: use clear, well-lit photos · show the device front and back · avoid blurry or partial shots</p>
-            <button
-              onClick={() => navigate("/upload")}
-              className="w-full py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5"
-              style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
-              ← Retake Photos
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen relative">
       <BackgroundOrbs />
       <Navbar />
       <main className="container mx-auto px-4 max-w-lg relative z-10 pt-20 pb-20 text-center font-sans">
-        <ProgressBar percent={progress} />
+        <ProgressBar percent={55} />
 
-        <div className="mt-12 animate-fade-in-up">
-          {/* Scan visualization */}
-          <div className="relative w-44 h-44 mx-auto mb-10">
-            <svg className="absolute inset-0 w-full h-full animate-spin" style={{ animationDuration: "4s" }} viewBox="0 0 176 176">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mt-12"
+        >
+          {/* Orbital scan visualization */}
+          <div className="relative w-52 h-52 mx-auto mb-12">
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 208 208" style={{ animation: "orbitSpin 6s linear infinite" }}>
               <defs>
-                <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="hsl(153 70% 48%)" />
-                  <stop offset="100%" stopColor="hsl(43 75% 55%)" />
+                <linearGradient id="orbitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="hsl(153 70% 48%)" stopOpacity="0.8" />
+                  <stop offset="50%" stopColor="hsl(43 75% 55%)" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="hsl(153 70% 48%)" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              <circle cx="88" cy="88" r="86" fill="none" stroke="hsl(150 15% 85%)" strokeWidth="1.5" />
-              <circle cx="88" cy="88" r="86" fill="none" stroke="url(#arcGrad)" strokeWidth="2" strokeDasharray="100 440" strokeLinecap="round" />
+              <circle cx="104" cy="104" r="100" fill="none" stroke="hsl(150 15% 88%)" strokeWidth="1" />
+              <circle cx="104" cy="104" r="100" fill="none" stroke="url(#orbitGrad)" strokeWidth="2" strokeDasharray="80 548" strokeLinecap="round" />
+              <circle cx="104" cy="4" r="4" fill="hsl(153 70% 48%)">
+                <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite" />
+              </circle>
             </svg>
-            {/* Progress ring */}
-            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 176 176">
-              <circle cx="88" cy="88" r="74" fill="none" stroke="hsl(150 15% 88%)" strokeWidth="3" />
-              <circle cx="88" cy="88" r="74" fill="none" stroke="url(#progressGrad2)" strokeWidth="3" strokeLinecap="round"
-                strokeDasharray={`${progress * 4.65} 465`} className="transition-all duration-200 ease-linear" />
+
+            <svg className="absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)]" viewBox="0 0 192 192" style={{ animation: "orbitSpin 8s linear infinite reverse" }}>
+              <circle cx="96" cy="96" r="90" fill="none" stroke="hsl(43 75% 50% / 0.15)" strokeWidth="1" strokeDasharray="4 8" />
+              <circle cx="96" cy="6" r="3" fill="hsl(43 75% 50% / 0.6)">
+                <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3s" repeatCount="indefinite" />
+              </circle>
+            </svg>
+
+            <svg className="absolute inset-5 w-[calc(100%-40px)] h-[calc(100%-40px)] -rotate-90" viewBox="0 0 168 168">
+              <circle cx="84" cy="84" r="78" fill="none" stroke="hsl(150 15% 90%)" strokeWidth="3" />
+              <circle cx="84" cy="84" r="78" fill="none" stroke="url(#loadProgressGrad)" strokeWidth="4" strokeLinecap="round"
+                strokeDasharray={`${scanProgress * 4.9} 490`} style={{ transition: "stroke-dasharray 0.3s ease-out" }} />
               <defs>
-                <linearGradient id="progressGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                <linearGradient id="loadProgressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="hsl(153 70% 38%)" />
                   <stop offset="100%" stopColor="hsl(43 75% 50%)" />
                 </linearGradient>
               </defs>
             </svg>
-            {/* Center */}
-            <div className="absolute inset-8 rounded-full flex items-center justify-center"
-              style={{ background: "hsl(40 30% 96%)" }}>
-              <div className="absolute inset-0 rounded-full animate-ping opacity-10" style={{ background: "hsl(153 70% 38%)", animationDuration: "2.5s" }} />
-              <PhaseIcon className="w-8 h-8 text-primary relative z-10 transition-all duration-300" />
+
+            <div className="absolute inset-10 rounded-full flex flex-col items-center justify-center"
+              style={{ background: "hsl(40 30% 97%)" }}>
+              <div className="absolute inset-0 rounded-full animate-ping opacity-[0.06]" style={{ background: "hsl(153 70% 38%)", animationDuration: "2.5s" }} />
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={phase}
+                  initial={{ opacity: 0, scale: 0.5, rotate: -20 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  exit={{ opacity: 0, scale: 0.5, rotate: 20 }}
+                  transition={{ duration: 0.3 }}
+                  className="relative z-10"
+                >
+                  <PhaseIcon className="w-9 h-9 text-primary" />
+                </motion.div>
+              </AnimatePresence>
+              <span className="text-xs font-bold text-primary mt-1 relative z-10">{Math.round(scanProgress)}%</span>
             </div>
           </div>
 
-          <h2 className="text-2xl md:text-3xl font-display font-bold mb-2">Analyzing Marketplace</h2>
-          <p className="text-sm text-primary font-medium mb-1 h-5">{phases[phase].label}</p>
-          <p className="text-xs text-faintest mb-8">{Math.round(progress)}% complete</p>
+          <motion.h2
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-2xl md:text-3xl font-display font-bold mb-3"
+          >
+            Analyzing Marketplace
+          </motion.h2>
+
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={phase}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="text-sm text-primary font-medium mb-8 h-5"
+            >
+              {phases[phase].label}
+            </motion.p>
+          </AnimatePresence>
 
           <div className="flex items-center justify-center gap-2 mb-10">
-            {phases.slice(0, 4).map((_, i) => (
-              <div key={i} className={`h-1 rounded-full transition-all duration-500 ${i <= phase ? "w-8" : "w-3"}`}
-                style={{ background: i <= phase ? "linear-gradient(90deg, hsl(153 70% 38%), hsl(43 75% 50%))" : "hsl(150 15% 85%)" }} />
+            {phases.map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{ width: i <= phase ? 32 : 12 }}
+                className="h-1.5 rounded-full"
+                style={{ background: i <= phase ? "linear-gradient(90deg, hsl(153 70% 38%), hsl(43 75% 50%))" : "hsl(150 15% 85%)" }}
+              />
             ))}
           </div>
 
-          <div className="glass-card text-left">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="glass-card-glow text-left"
+          >
             <span className="text-[11px] font-bold uppercase tracking-[2px] gradient-text mb-2 block">Did you know?</span>
-            <p className="text-sm text-body leading-relaxed">{fact}</p>
-          </div>
-        </div>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={factIdx}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.4 }}
+                className="text-sm text-body leading-relaxed"
+              >
+                {facts[factIdx]}
+              </motion.p>
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
       </main>
     </div>
   );
