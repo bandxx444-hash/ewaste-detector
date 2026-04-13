@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Trash2, DollarSign, Store, Recycle, Inbox } from "lucide-react";
+import { Trash2, DollarSign, Store, Recycle, Inbox, Leaf, Users, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
@@ -38,16 +38,27 @@ const DashboardPage = () => {
         </motion.h1>
 
         {scanHistory.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-20"
-          >
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="text-center py-12">
             <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-4">
               <Inbox className="w-8 h-8 text-faintest" />
             </div>
             <h2 className="text-xl font-display font-bold mb-2">No scans yet</h2>
-            <p className="text-subtle text-sm mb-6">Start scanning devices to see your history here.</p>
+            <p className="text-subtle text-sm mb-8">Scan your first device to start tracking your environmental impact.</p>
+
+            <div className="grid grid-cols-3 gap-3 mb-8 text-left">
+              {[
+                { icon: <Users className="w-5 h-5 text-primary" />, stat: "1,000 users", desc: "Could save 350,000 lbs of CO₂" },
+                { icon: <TrendingUp className="w-5 h-5 text-primary" />, stat: "$150B", desc: "Secondhand electronics market by 2030" },
+                { icon: <Leaf className="w-5 h-5 text-primary" />, stat: "2 tonnes", desc: "CO₂ prevented per tonne recycled" },
+              ].map(({ icon, stat, desc }) => (
+                <div key={stat} className="glass-card text-center py-4 px-3">
+                  <div className="flex justify-center mb-2">{icon}</div>
+                  <p className="text-sm font-display font-bold gradient-text">{stat}</p>
+                  <p className="text-[11px] text-subtle leading-snug mt-1">{desc}</p>
+                </div>
+              ))}
+            </div>
+
             <button onClick={() => navigate("/upload")}
               className="px-6 py-3 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta gradient-btn relative overflow-hidden">
               <span className="relative z-10">Scan Your First Device →</span>

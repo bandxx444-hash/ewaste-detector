@@ -231,6 +231,14 @@
   50% { background-position: 100% 50%; }
 }
 
+@keyframes uncertainPulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(38 92% 50% / 0); }
+  50% { box-shadow: 0 0 0 4px hsl(38 92% 50% / 0.25); }
+}
+.animate-uncertain-pulse {
+  animation: uncertainPulse 1.8s ease-in-out infinite;
+}
+
 @keyframes particleRise {
   0%   { opacity: 0; transform: translateY(0); }
   10%  { opacity: 0.85; }

@@ -27,7 +27,9 @@ const DiagnosticsPage = () => {
 
   const isUncertain = (key: string) => form.aiConfidence[key] === false;
 
-  const inputCls = "w-full border border-border rounded-xl px-4 py-2.5 text-sm bg-card text-foreground placeholder:text-faintest focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all duration-200 font-sans";
+  const inputCls = "w-full border rounded-xl px-4 py-2.5 text-sm bg-card text-foreground placeholder:text-faintest focus:outline-none focus:ring-2 transition-all duration-200 font-sans";
+  const uncertainInputCls = `${inputCls} border-orange-400/60 focus:ring-orange-400/30 animate-uncertain-pulse`;
+  const normalInputCls = `${inputCls} border-border focus:ring-primary/30`;
 
   return (
     <div className="min-h-screen relative">
@@ -89,14 +91,15 @@ const DiagnosticsPage = () => {
                 <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   {fieldLabel(key)}
                   {key === "modelNumber" && <span className="text-faintest font-normal">(optional)</span>}
-                  {isUncertain(key) && <AlertTriangle className="w-3.5 h-3.5 text-accent" />}
+                  {isUncertain(key) && <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />}
+                  {isUncertain(key) && <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wide">Needs your input</span>}
                 </label>
                 <input
                   type={key === "yearOfPurchase" ? "number" : "text"}
                   value={(form as any)[key]}
                   onChange={e => update(key, key === "yearOfPurchase" ? parseInt(e.target.value) : e.target.value)}
                   placeholder={key === "productName" ? "e.g. iPhone 12" : key === "brand" ? "e.g. Apple" : key === "modelNumber" ? "e.g. A2172" : ""}
-                  className={inputCls}
+                  className={isUncertain(key) ? uncertainInputCls : normalInputCls}
                 />
               </div>
             ))}
@@ -104,9 +107,10 @@ const DiagnosticsPage = () => {
             <div>
               <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-2">
                 {fieldLabel("powersOn")}
-                {isUncertain("powersOn") && <AlertTriangle className="w-3.5 h-3.5 text-accent" />}
+                {isUncertain("powersOn") && <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />}
+                {isUncertain("powersOn") && <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wide">Needs your input</span>}
               </label>
-              <div className="flex gap-3">
+              <div className={`flex gap-3 ${isUncertain("powersOn") ? "rounded-xl ring-1 ring-orange-400/40 animate-uncertain-pulse p-0.5" : ""}`}>
                 {[true, false].map(val => (
                   <button key={String(val)} onClick={() => update("powersOn", val)}
                     className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all duration-200 ${
@@ -121,9 +125,10 @@ const DiagnosticsPage = () => {
             <div>
               <label className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                 {fieldLabel("screenCondition")}
-                {isUncertain("screenCondition") && <AlertTriangle className="w-3.5 h-3.5 text-accent" />}
+                {isUncertain("screenCondition") && <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />}
+                {isUncertain("screenCondition") && <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wide">Needs your input</span>}
               </label>
-              <select value={form.screenCondition} onChange={e => update("screenCondition", e.target.value)} className={inputCls}>
+              <select value={form.screenCondition} onChange={e => update("screenCondition", e.target.value)} className={isUncertain("screenCondition") ? uncertainInputCls : normalInputCls}>
                 <option value="">Select condition…</option>
                 <option value="Flawless">Flawless</option>
                 <option value="Minor Scratches">Minor Scratches</option>

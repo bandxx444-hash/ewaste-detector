@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ScanProvider } from "@/context/ScanContext";
 import ScrollToTop from "@/components/ScrollToTop";
+import Footer from "@/components/Footer";
 import Index from "./pages/Index.tsx";
 import HowItWorks from "./pages/HowItWorks.tsx";
 import UploadPage from "./pages/UploadPage.tsx";
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <Footer />
         </ScanProvider>
       </BrowserRouter>
     </TooltipProvider>

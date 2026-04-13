@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import confetti from "canvas-confetti";
 import { ChevronLeft, ChevronRight, ExternalLink, RotateCcw, DollarSign, Recycle, Leaf, Loader2, Copy, Check, Tag, Star, Truck, ShieldCheck, MapPin, Navigation } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
@@ -384,6 +385,7 @@ const ListingPage = () => {
                 </div>
               )}
               <a href="https://www.ebay.com/sl/sell" target="_blank" rel="noopener noreferrer"
+                onClick={() => confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ["#16a34a", "#22c55e", "#f5a623", "#ffffff"] })}
                 className="w-full mb-3 py-4 rounded-xl font-bold text-[16px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2"
                 style={{ background: "linear-gradient(135deg, hsl(153 70% 38%), hsl(153 70% 28%))" }}>
                 <ExternalLink className="w-5 h-5" /> Post on eBay →

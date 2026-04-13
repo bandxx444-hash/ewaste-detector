@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Sparkles, DollarSign, Store, Recycle, Leaf, ExternalLink } from "lucide-react";
+import { ArrowLeft, Sparkles, DollarSign, Store, Recycle, Leaf, ExternalLink, Zap, Clock, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import BackgroundOrbs from "@/components/BackgroundOrbs";
@@ -45,6 +45,14 @@ const ResultsPage = () => {
     setCo2Pulse(true);
     setTimeout(() => setCo2Pulse(false), 600);
   };
+
+  const saleSpeed = (() => {
+    const range = result.valueHigh - result.valueLow;
+    const pos = range > 0 ? (price - result.valueLow) / range : 0.5;
+    if (pos < 0.33) return { label: "Fast Sale Likely", sub: "Typically sells within 1–3 days", icon: <Zap className="w-3.5 h-3.5" />, color: "text-primary", bg: "bg-primary/10", border: "border-primary/20" };
+    if (pos < 0.66) return { label: "Moderate Demand", sub: "Usually sells within 1–2 weeks", icon: <Clock className="w-3.5 h-3.5" />, color: "text-accent", bg: "bg-accent/10", border: "border-accent/20" };
+    return { label: "Slower Sale Expected", sub: "May take 2+ weeks at this price", icon: <TrendingDown className="w-3.5 h-3.5" />, color: "text-destructive", bg: "bg-destructive/8", border: "border-destructive/20" };
+  })();
 
   const handleGenerate = () => {
     setResult({ ...result, decision: decision === "ai" ? result.recommendation : decision, adjustedPrice: price });
@@ -118,6 +126,18 @@ const ResultsPage = () => {
                 Selling keeps <span className="font-bold">{result.co2Saved} lbs of CO₂</span> out of landfills
               </span>
             </div>
+            <motion.div
+              key={saleSpeed.label}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`mt-2 flex items-center gap-2 rounded-xl px-3 py-2 border ${saleSpeed.bg} ${saleSpeed.border}`}
+            >
+              <span className={saleSpeed.color}>{saleSpeed.icon}</span>
+              <div>
+                <span className={`text-xs font-bold ${saleSpeed.color}`}>{saleSpeed.label}</span>
+                <span className="text-xs text-subtle ml-1.5">{saleSpeed.sub}</span>
+              </div>
+            </motion.div>
           </motion.div>
         )}
 

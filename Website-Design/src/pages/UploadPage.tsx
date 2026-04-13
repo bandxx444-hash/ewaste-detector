@@ -17,6 +17,9 @@ const UploadPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detected, setDetected] = useState<{ name: string; confidence: number } | null>(null);
+  const [scanPhase, setScanPhase] = useState(0);
+  const scanPhases = ["Preprocessing image…", "Detecting device type…", "Identifying model…", "Calculating confidence…"];
 
   const handlePhotoDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -39,6 +42,11 @@ const UploadPage = () => {
   const handleContinue = async () => {
     setLoading(true);
     setError(null);
+    setScanPhase(0);
+    // Cycle through scan phases while waiting
+    const phaseInterval = setInterval(() => {
+      setScanPhase(p => Math.min(p + 1, scanPhases.length - 1));
+    }, 700);
     try {
       const formData = new FormData();
       files.forEach(f => formData.append("files", f));
@@ -46,11 +54,19 @@ const UploadPage = () => {
       const res = await fetch(`${apiBase}/api/identify`, { method: "POST", body: formData });
       if (!res.ok) throw new Error("Identification failed");
       const diag = await res.json();
+      clearInterval(phaseInterval);
+      setScanPhase(scanPhases.length - 1);
+      // Calculate confidence from aiConfidence fields
+      const allFields = Object.values(diag.aiConfidence || {});
+      const confidentCount = allFields.filter(Boolean).length;
+      const confidencePct = allFields.length > 0 ? Math.round((confidentCount / allFields.length) * 100) : 92;
+      setDetected({ name: diag.productName || diag.brand || "Your Device", confidence: confidencePct });
       setDiagnostics(diag);
-      navigate("/diagnostics");
+      // Show detection result briefly, then navigate
+      setTimeout(() => navigate("/diagnostics"), 1600);
     } catch {
+      clearInterval(phaseInterval);
       setError("Could not identify your device. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -198,14 +214,46 @@ const UploadPage = () => {
                 {mediaCount} {tab === "photos" ? "image(s)" : "video"} ready · AI will auto-identify your device
               </span>
             </div>
-            <button onClick={handleContinue} disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5 gradient-btn relative overflow-hidden flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
-              {loading ? (
-                <><Loader2 className="w-4 h-4 animate-spin relative z-10" /><span className="relative z-10">Identifying device…</span></>
-              ) : (
+            {loading && detected ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-2xl border border-primary/30 px-6 py-5 text-center mb-2"
+                style={{ background: "linear-gradient(135deg, hsl(153 70% 38% / 0.08), hsl(43 75% 50% / 0.05))" }}
+              >
+                <Check className="w-7 h-7 text-primary mx-auto mb-2" />
+                <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">Device Detected</p>
+                <p className="text-lg font-display font-bold text-foreground mb-1">{detected.name}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="h-1.5 rounded-full overflow-hidden flex-1 max-w-[120px]" style={{ background: "hsl(150 15% 88%)" }}>
+                    <motion.div className="h-full rounded-full" style={{ background: "hsl(153 70% 38%)" }}
+                      initial={{ width: 0 }} animate={{ width: `${detected.confidence}%` }} transition={{ duration: 0.6 }} />
+                  </div>
+                  <span className="text-sm font-bold gradient-text">{detected.confidence}% Match</span>
+                </div>
+              </motion.div>
+            ) : loading ? (
+              <div className="rounded-2xl border border-border px-5 py-4 mb-2" style={{ background: "hsl(40 30% 97%)" }}>
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">{scanPhases[scanPhase]}</p>
+                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ background: "hsl(150 15% 88%)" }}>
+                      <motion.div className="h-full rounded-full" style={{ background: "hsl(153 70% 38%)" }}
+                        animate={{ width: [`${(scanPhase / scanPhases.length) * 80}%`, `${((scanPhase + 1) / scanPhases.length) * 90}%`] }}
+                        transition={{ duration: 0.6 }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {!loading && (
+              <button onClick={handleContinue}
+                className="w-full py-3.5 rounded-xl font-bold text-[15px] text-primary-foreground shadow-cta transition-all duration-300 hover:-translate-y-0.5 gradient-btn relative overflow-hidden flex items-center justify-center gap-2">
                 <span className="relative z-10">Continue — AI will auto-fill details →</span>
-              )}
-            </button>
+              </button>
+            )}
           </motion.div>
         )}
       </main>

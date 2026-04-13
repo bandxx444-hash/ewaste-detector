@@ -1,11 +1,12 @@
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle } from "lucide-react";
 
 const crisisStats = [
-  { value: "62M tonnes", label: "E-waste generated globally in 2023" },
-  { value: "~1.8B", label: "New electronics sold every year" },
-  { value: "$91B+", label: "In recoverable materials discarded annually" },
-  { value: "< 20%", label: "Of e-waste formally recycled worldwide" },
+  { num: 62,  decimals: 0, prefix: "",   suffix: "M tonnes", label: "E-waste generated globally in 2023" },
+  { num: 1.8, decimals: 1, prefix: "~",  suffix: "B",        label: "New electronics sold every year" },
+  { num: 91,  decimals: 0, prefix: "$",  suffix: "B+",       label: "In recoverable materials discarded annually" },
+  { num: 20,  decimals: 0, prefix: "< ", suffix: "%",        label: "Of e-waste formally recycled worldwide" },
 ];
 
 const harmfulPoints = [
@@ -27,9 +28,46 @@ const fadeUp = {
   visible: { opacity: 1, y: 0 },
 };
 
+function AnimatedStat({ num, decimals, prefix, suffix, label }: typeof crisisStats[0]) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const duration = 1600;
+          const start = performance.now();
+          const step = (now: number) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+            setCount(parseFloat((eased * num).toFixed(decimals)));
+            if (progress < 1) requestAnimationFrame(step);
+            else setCount(num);
+          };
+          requestAnimationFrame(step);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [num, decimals]);
+
+  return (
+    <div ref={ref} className="rounded-2xl border border-border bg-card px-5 py-6 text-center">
+      <div className="text-2xl md:text-3xl font-display font-bold gradient-text mb-2">
+        {prefix}{decimals > 0 ? count.toFixed(decimals) : Math.round(count)}{suffix}
+      </div>
+      <div className="text-xs text-subtle font-sans leading-snug">{label}</div>
+    </div>
+  );
+}
+
 const EWasteCrisisSection = () => (
   <section className="relative z-10 mt-24">
-    {/* Section background */}
     <div className="rounded-3xl px-6 md:px-12 py-14" style={{ background: "hsl(150 20% 92% / 0.6)" }}>
       <motion.div
         initial="hidden"
@@ -51,19 +89,15 @@ const EWasteCrisisSection = () => (
           cadmium into soil and groundwater.
         </motion.p>
 
-        {/* Stats row */}
+        {/* Animated stats row */}
         <motion.div variants={fadeUp} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-14">
           {crisisStats.map((s) => (
-            <div key={s.value} className="rounded-2xl border border-border bg-card px-5 py-6 text-center">
-              <div className="text-2xl md:text-3xl font-display font-bold gradient-text mb-2">{s.value}</div>
-              <div className="text-xs text-subtle font-sans leading-snug">{s.label}</div>
-            </div>
+            <AnimatedStat key={s.label} {...s} />
           ))}
         </motion.div>
 
         {/* Two columns */}
         <div className="grid md:grid-cols-2 gap-10 mb-14">
-          {/* Why it's harmful */}
           <motion.div variants={fadeUp}>
             <h3 className="text-xl font-display font-bold mb-5">Why it's harmful</h3>
             <div className="space-y-4">
@@ -76,7 +110,6 @@ const EWasteCrisisSection = () => (
             </div>
           </motion.div>
 
-          {/* How reselling & recycling helps */}
           <motion.div variants={fadeUp}>
             <h3 className="text-xl font-display font-bold mb-5">How reselling &amp; recycling helps</h3>
             <div className="space-y-4">
