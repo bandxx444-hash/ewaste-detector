@@ -77,17 +77,30 @@ async def get_ebay_token() -> str:
         print(f"eBay token fetch error: {e}")
         return ""
 
-async def ebay_sold_listings(query: str, limit: int = 6) -> list[dict]:
-    """Fetch active eBay listings via the Browse API."""
+async def ebay_sold_listings(query: str, limit: int = 6, price_low: float = 0, price_high: float = 0) -> list[dict]:
+    """Fetch active eBay listings via the Browse API, filtered to used devices in price range."""
     token = await get_ebay_token()
     if not token:
         return []
     url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
-    params = {"q": query, "limit": limit}
+    # Filter: Used condition only, sort by Best Match, exclude accessories/cases/parts
+    params = {
+        "q": query,
+        "limit": min(limit * 3, 18),  # fetch more so we can filter outliers
+        "filter": "conditions:{USED}",
+        "sort": "bestMatch",
+    }
+    # Narrow by price range if we have an estimate
+    if price_low > 0 and price_high > 0:
+        margin = (price_high - price_low) * 0.6
+        params["filter"] += f",price:[{max(0, price_low - margin)}..{price_high + margin}],priceCurrency:USD"
     headers = {
         "Authorization": f"Bearer {token}",
         "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
     }
+    # Keywords that indicate it's NOT a whole device listing
+    EXCLUDE = {"case", "cover", "charger", "cable", "adapter", "screen protector",
+               "battery", "repair", "parts only", "for parts", "skin", "sleeve"}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(url, params=params, headers=headers)
@@ -98,8 +111,16 @@ async def ebay_sold_listings(query: str, limit: int = 6) -> list[dict]:
             return []
         items = data.get("itemSummaries", [])
         results = []
-        for item in items[:limit]:
+        for item in items:
+            if len(results) >= limit:
+                break
+            title = item.get("title", "").lower()
+            # Skip accessories and non-device listings
+            if any(kw in title for kw in EXCLUDE):
+                continue
             price_val = float(item.get("price", {}).get("value", 0))
+            if price_val <= 0:
+                continue
             image_url = item.get("image", {}).get("imageUrl", "")
             image_url = image_url.replace("s-l225", "s-l500").replace("s-l140", "s-l500")
             results.append({
@@ -111,7 +132,7 @@ async def ebay_sold_listings(query: str, limit: int = 6) -> list[dict]:
                 "imageUrl": image_url,
                 "ebayUrl": item.get("itemWebUrl", "https://www.ebay.com"),
             })
-        print(f"eBay Browse API returned {len(results)} listings")
+        print(f"eBay Browse API returned {len(results)} filtered listings")
         return results
     except Exception as e:
         print(f"eBay Browse API error: {e}")
@@ -133,8 +154,7 @@ async def image_proxy(url: str):
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 IDENTIFY_PROMPT = """
-Look at these photos of an electronic device and identify it as accurately as possible.
-For each field provide the actual identified value AND your confidence level.
+You are an expert electronics identifier. Study every photo carefully and extract as much information as possible.
 
 Return ONLY valid JSON — no markdown, no explanation:
 {
@@ -147,15 +167,15 @@ Return ONLY valid JSON — no markdown, no explanation:
 }
 
 Rules:
-- device_name: the full product name you see (e.g. "MacBook Pro 14", "Samsung Galaxy S21", "iPad Air 4th Gen")
-- brand: manufacturer name (e.g. "Apple", "Samsung", "Dell", "Sony")
-- model: model number or identifier if visible (e.g. "A2442", "SM-G991B"), null if not visible
-- year: estimated release year as a number (e.g. 2021), null if uncertain
-- powers_on: "Yes" or "No" based on what you can see, null if screen is off and you cannot tell
-- screen_condition: one of "Flawless", "Minor Scratches", "Cracked", "Screen is off/broken", null if uncertain
-- confidence must be exactly one of: "certain", "likely", "unknown"
-- If you cannot determine a value, set value to null and confidence to "unknown"
-- Do NOT use placeholder or example text as values — only use what you actually observe
+- device_name: full product name (e.g. "MacBook Pro 14-inch", "Samsung Galaxy S21 Ultra", "iPad Air 5th Gen"). Use design cues — port layout, keyboard shape, logo placement, display bezels, color — to narrow down the exact generation even if no text is visible.
+- brand: manufacturer (e.g. "Apple", "Samsung", "Dell", "Sony", "Lenovo"). Look for logos on lid, bezel, or chassis. Apple logo, Dell logo, ThinkPad branding etc are usually visible.
+- model: model number if any label, sticker, or engraving is visible (e.g. "A2442", "SM-G991B"). If no text visible, infer the most likely model identifier from device shape, port configuration, and generation cues — mark as "likely".
+- year: release year as a number. Use the device generation, design language, port types (USB-C vs USB-A, MagSafe version, notch vs no notch), and chip generation to estimate. Always provide your best estimate — do not leave null unless truly impossible.
+- powers_on: "Yes" if any screen activity, light, or indicator is visible. "No" if device appears off or damaged. If uncertain, make your best inference from the screen state.
+- screen_condition: "Flawless" (no visible damage), "Minor Scratches" (light surface marks), "Cracked" (visible cracks), or "Screen is off/broken". Inspect every photo carefully.
+- confidence: "certain" (you can clearly see it), "likely" (strong inference from visual cues), "unknown" (genuinely cannot determine)
+- Always provide a best-guess value rather than null — only use null when there is truly no basis for an estimate.
+- Do NOT use placeholder or example text — only values you actually observe or confidently infer.
 """
 
 CARBON_SAVINGS = {
@@ -294,17 +314,15 @@ async def analyze(
         name=name, brand=brand, model=model, year=year
     )})
 
-    # Fetch real eBay sold listings in parallel with Claude analysis
-    ebay_query = f"{brand} {name} {model}".strip()
+    # Build a tight eBay query: brand + device name + year (skip model number — too specific)
+    ebay_query = " ".join(filter(None, [brand, name, str(year) if year else ""])).strip()
     client = anthropic.Anthropic()
-    ebay_task = ebay_sold_listings(ebay_query, limit=6)
-
+    # Start Claude analysis first so we get price range before eBay search
     resp = client.messages.create(
         model="claude-sonnet-4-5",
         max_tokens=1000,
         messages=[{"role": "user", "content": blocks}],
     )
-
     raw = None
     for block in reversed(resp.content):
         if hasattr(block, "text") and block.text.strip():
@@ -312,6 +330,10 @@ async def analyze(
             break
     if not raw:
         raise ValueError("No analysis response from Claude.")
+
+    price_low = raw.get("estimated_value_low", 0)
+    price_high = raw.get("estimated_value_high", 0)
+    ebay_task = ebay_sold_listings(ebay_query, limit=6, price_low=price_low, price_high=price_high)
 
     # Use real eBay listings if available, else fall back to Claude's estimates
     comparables = await ebay_task

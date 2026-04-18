@@ -77,6 +77,14 @@ const LoadingPage = () => {
         const result = { ...data, scannedAt: new Date(data.scannedAt || Date.now()) };
         setResult(result);
 
+        // Preload all eBay listing images NOW so they're cached before the user sees them
+        (result.comparables || []).forEach((c: { imageUrl?: string }) => {
+          if (c.imageUrl) {
+            const img = new Image();
+            img.src = `/api/image-proxy?url=${encodeURIComponent(c.imageUrl)}`;
+          }
+        });
+
         // Preload listing in background so ListingPage opens instantly
         if (result.recommendation === "sell") {
           generateListing(result).then(listing => setListing(listing)).catch(() => {});

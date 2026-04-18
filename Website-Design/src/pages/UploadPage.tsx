@@ -16,6 +16,7 @@ const UploadPage = () => {
   const videoRef = useRef<HTMLInputElement>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [extractingFrames, setExtractingFrames] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detected, setDetected] = useState<{ name: string; confidence: number } | null>(null);
@@ -33,10 +34,103 @@ const UploadPage = () => {
     if (e.target.files) setFiles([...files, ...Array.from(e.target.files)]);
   }, [files, setFiles]);
 
-  const handleVideoSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const extractVideoFrames = (file: File): Promise<File[]> => {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      const src = URL.createObjectURL(file);
+      video.src = src;
+      video.muted = true;
+      video.preload = "metadata";
+
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        const W = video.videoWidth;
+        const H = video.videoHeight;
+
+        // Sample 20 candidates evenly spread across the video
+        const CANDIDATES = 20;
+        const timestamps = Array.from({ length: CANDIDATES }, (_, i) =>
+          ((i + 0.5) / CANDIDATES) * duration
+        );
+
+        type ScoredFrame = { ts: number; score: number; blob: Blob };
+        const scored: ScoredFrame[] = [];
+
+        // Score a frame by sharpness (Laplacian proxy) and brightness quality
+        const scoreFrame = (ctx: CanvasRenderingContext2D): number => {
+          const { data } = ctx.getImageData(0, 0, W, H);
+          let lumSum = 0, edgeSum = 0, count = 0;
+          for (let i = 0; i < data.length - 4; i += 16) {
+            const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            const lumR = 0.299 * data[i + 4] + 0.587 * data[i + 5] + 0.114 * data[i + 6];
+            lumSum += lum;
+            edgeSum += (lum - lumR) ** 2;
+            count++;
+          }
+          const brightness = lumSum / count;
+          // Penalise too dark (<40) or too bright (>215)
+          const brightnessScore = brightness > 40 && brightness < 215 ? 1 : 0.1;
+          return (edgeSum / count) * brightnessScore;
+        };
+
+        // Process timestamps sequentially to avoid seek race conditions
+        const processNext = (i: number) => {
+          if (i >= timestamps.length) {
+            URL.revokeObjectURL(src);
+
+            // Sort by quality score, then greedily pick 5-8 diverse frames
+            scored.sort((a, b) => b.score - a.score);
+            const TARGET = Math.min(8, Math.max(5, scored.length));
+            const minGap = duration * 0.05;
+            const picked: ScoredFrame[] = [];
+
+            for (const f of scored) {
+              if (picked.length >= TARGET) break;
+              const tooClose = picked.some(p => Math.abs(p.ts - f.ts) < minGap);
+              if (!tooClose) picked.push(f);
+            }
+            // Fill up to 5 if diversity filter was too strict
+            for (const f of scored) {
+              if (picked.length >= 5) break;
+              if (!picked.includes(f)) picked.push(f);
+            }
+
+            // Return in chronological order
+            picked.sort((a, b) => a.ts - b.ts);
+            resolve(picked.map((f, idx) => new File([f.blob], `frame_${idx}.jpg`, { type: "image/jpeg" })));
+            return;
+          }
+
+          video.currentTime = timestamps[i];
+          video.onseeked = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(video, 0, 0);
+            const score = scoreFrame(ctx);
+            canvas.toBlob((blob) => {
+              if (blob) scored.push({ ts: timestamps[i], score, blob });
+              processNext(i + 1);
+            }, "image/jpeg", 0.88);
+          };
+        };
+
+        processNext(0);
+      };
+
+      video.onerror = () => resolve([]);
+    });
+  };
+
+  const handleVideoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      setVideoFile(e.target.files[0]);
-      setFiles([e.target.files[0]]);
+      const file = e.target.files[0];
+      setVideoFile(file);
+      setExtractingFrames(true);
+      const frames = await extractVideoFrames(file);
+      setExtractingFrames(false);
+      setFiles(frames.length > 0 ? frames : [file]);
     }
   }, [setFiles]);
 
@@ -258,7 +352,12 @@ const UploadPage = () => {
                 <p className="text-xs text-faintest">MP4, MOV, AVI · Single file</p>
                 <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={handleVideoSelect} />
               </div>
-              {videoFile && (
+              {extractingFrames && (
+                <div className="mt-4 flex items-center gap-2 text-sm text-primary font-medium px-1">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Extracting frames…
+                </div>
+              )}
+              {videoFile && !extractingFrames && (
                 <div className="mt-4 rounded-xl overflow-hidden border border-border">
                   <video src={URL.createObjectURL(videoFile)} controls className="w-full max-h-64 object-contain" />
                 </div>
